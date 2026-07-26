@@ -117,8 +117,11 @@ def validate_material_manifest_payload(payload: Mapping[str, Any]) -> int:
         if missing:
             raise ContractError(f"manifest_fields_missing: row={row_number} fields={missing!r}")
         _validate_relative_path(item.get("relative_path"), row_number)
+        raw_byte_size = item.get("byte_size")
+        if raw_byte_size is None:
+            raise ContractError(f"manifest_byte_size_invalid: row={row_number}")
         try:
-            byte_size = int(item.get("byte_size"))
+            byte_size = int(raw_byte_size)
         except (TypeError, ValueError) as exc:
             raise ContractError(f"manifest_byte_size_invalid: row={row_number}") from exc
         if byte_size < 0:
