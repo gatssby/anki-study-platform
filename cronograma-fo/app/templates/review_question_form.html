@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% set active_page = "questions" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+{% block body_class %}app-page secondary-page review-page review-form-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/review.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">{{ hero_kicker }}</p>
+          <h1>{{ hero_title }}</h1>
+          <p class="console-hero__subtitle">{{ hero_subtitle }}</p>
+        </div>
+
+        <div class="console-hero__meta">
+          <a class="console-button console-button--ghost console-button--compact" href="{{ back_url }}">Voltar</a>
+          <span>png jpg jpeg webp</span>
+          <span>Máximo {{ form_options.max_image_mb }} MB por imagem</span>
+        </div>
+      </section>
+
+      <div class="review-form-layout">
+        <details class="console-panel console-panel--accent review-form-instructions">
+          <summary>
+            <div>
+              <p class="console-panel-label">Instrução</p>
+              <h2>Como preencher</h2>
+            </div>
+          </summary>
+
+          <p class="console-note">Você pode salvar com texto, com imagem da questão ou com ambos. Para objetiva, informe a alternativa correta. Para discursiva, desmarque a opção de objetiva.</p>
+        </details>
+
+        <section class="console-panel">
+          <div class="console-section-head">
+              <div>
+                <p class="console-panel-label">Formulário</p>
+                <h2>{{ form_title }}</h2>
+              </div>
+          </div>
+
+          {% if error_message %}
+          <div class="review-alert review-alert--error" role="alert">
+            {{ error_message }}
+          </div>
+          {% endif %}
+
+          <form
+            method="post"
+            action="{{ form_action }}"
+            enctype="multipart/form-data"
+            class="console-form review-question-form"
+            data-review-question-form
+            data-max-image-bytes="{{ form_options.max_image_mb * 1024 * 1024 }}"
+            data-accepted-mime-types="{{ form_options.accepted_mime_types }}"
+          >
+            {% if return_to %}
+            <input type="hidden" name="return_to" value="{{ return_to }}" />
+            {% endif %}
+            <div class="review-form-grid">
+              <label class="review-form-field">
+                <span>Matéria</span>
+                <select name="subject" required>
+                  {% for subject in form_options.subjects %}
+                  <option value="{{ subject }}" {{ 'selected' if form_state.subject == subject else '' }}>{{ subject }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field review-form-field--full">
+                <span>Texto/enunciado da questão</span>
+                <textarea
+                  name="statement"
+                  rows="6"
+                  placeholder="Opcional se houver print da questão."
+                >{{ form_state.statement }}</textarea>
+                <small class="field-help muted">Se não preencher o texto, anexe ou cole a imagem da questão.</small>
+              </label>
+
+              <div class="review-form-field review-form-field--full">
+                <span>Imagem da questão</span>
+                {% if existing_question and existing_question.question_image_urls %}
+                <div class="review-existing-asset">
+                  <p class="field-help muted">Imagens atuais. Você pode adicionar novas imagens ou marcar imagens antigas para remoção. A mudança só é salva ao enviar o formulário.</p>
+                  <div class="review-image-gallery review-image-gallery--current">
+                    {% for image_item in existing_question.question_images %}
+                    {% set is_marked_for_removal = image_item.path in removed_question_image_paths %}
+                    <div class="review-card-image-wrap review-card-image-wrap--editable {{ 'is-marked-for-removal' if is_marked_for_removal else '' }}" data-existing-question-image>
+                      <input
+                        type="hidden"
+                        name="remove_question_images"
+                        value="{{ image_item.path }}"
+                        data-remove-image-input
+                        {{ '' if is_marked_for_removal else 'disabled' }}
+                      />
+                      <button
+                        type="button"
+                        class="review-card-image-remove"
+                        data-remove-image-button
+                        aria-label="{{ 'Desfazer remoção da imagem atual da questão' if is_marked_for_removal else 'Remover imagem atual da questão' }}"
+                        aria-pressed="{{ 'true' if is_marked_for_removal else 'false' }}"
+                        title="{{ 'Desfazer remoção' if is_marked_for_removal else 'Remover imagem' }}"
+                      >
+                        <span aria-hidden="true">&times;</span>
+                      </button>
+                      <img class="review-card-image" src="{{ image_item.url }}" alt="Imagem atual da questão {{ loop.index }}" />
+                      <div class="review-card-image-meta">
+                        <span class="review-card-image-filename">{{ image_item.filename }}</span>
+                        <span class="review-card-image-status" data-remove-image-status>{{ 'Será removida ao salvar' if is_marked_for_removal else 'Imagem atual' }}</span>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+                <div
+                  class="review-upload-widget"
+                  data-upload-widget
+                  data-widget-name="question"
+                  tabindex="0"
+                >
+                  <input
+                    class="review-upload-widget__input"
+                    type="file"
+                    name="question_images"
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                    multiple
+                    data-file-input
+                    data-multiple="1"
+                  />
+                  <button type="button" class="console-button console-button--ghost console-button--compact review-upload-widget__button" data-file-trigger>Selecionar arquivos</button>
+                  <div class="review-upload-widget__paste" data-paste-zone>
+                    Cole imagens aqui com Ctrl+V/Cmd+V ou selecione arquivos.
+                  </div>
+                  <p class="field-help muted" data-file-hint>Aceita png, jpg, jpeg e webp até {{ form_options.max_image_mb }} MB.</p>
+                  <p class="field-help bad" data-upload-error hidden></p>
+                  <div class="review-upload-widget__preview" data-preview-list hidden>
+                    <div class="review-upload-widget__preview-grid" data-preview-grid></div>
+                    <div class="review-upload-widget__meta">
+                      <span data-preview-summary></span>
+                      <button type="button" class="console-button console-button--ghost console-button--compact" data-clear-upload>Limpar seleção</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <label class="review-form-field">
+                <span>Motivo do erro</span>
+                <select name="error_reason">
+                  <option value="">Selecionar depois</option>
+                  {% for reason in form_options.error_reasons %}
+                  <option value="{{ reason }}" {{ 'selected' if form_state.error_reason == reason else '' }}>{{ reason }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field">
+                <span>Dificuldade inicial</span>
+                <select name="difficulty" required>
+                  {% for difficulty in form_options.difficulties %}
+                  <option value="{{ difficulty }}" {{ 'selected' if form_state.difficulty == difficulty else '' }}>{{ difficulty }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field review-form-field--full">
+                <span>Tags</span>
+                <input
+                  type="text"
+                  name="tags"
+                  value="{{ form_state.tags }}"
+                  placeholder="Separadas por vírgula"
+                  list="review-question-tag-suggestions"
+                />
+                <datalist id="review-question-tag-suggestions">
+                  {% for tag in tag_suggestions %}
+                  <option value="{{ tag }}"></option>
+                  {% endfor %}
+                </datalist>
+              </label>
+
+              <label class="review-check-field review-form-field--full">
+                <input type="checkbox" name="is_objective" value="1" {{ 'checked' if form_state.is_objective else '' }} data-objective-toggle />
+                <span>Questão objetiva</span>
+              </label>
+
+              <label class="review-form-field" data-objective-only {{ 'hidden' if not form_state.is_objective else '' }}>
+                <span>Alternativa correta</span>
+                <select name="correct_option" data-objective-select {{ '' if form_state.is_objective else 'disabled' }}>
+                  <option value="">Selecione</option>
+                  {% for option in form_options.objective_options %}
+                  <option value="{{ option }}" {{ 'selected' if form_state.correct_option == option else '' }}>{{ option }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field review-form-field--full">
+                <span>Comentário/resolução</span>
+                <textarea name="explanation" rows="5" placeholder="Opcional">{{ form_state.explanation }}</textarea>
+              </label>
+
+              <div class="review-form-field review-form-field--full">
+                <span>Imagem do comentário/resolução</span>
+                {% if existing_question and existing_question.answer_image_url %}
+                <div class="review-existing-asset">
+                  <p class="field-help muted">Imagem atual da resolução. Se enviar outra, a referência passa a apontar para o novo arquivo. O arquivo antigo não é apagado automaticamente nesta etapa.</p>
+                  <div class="review-card-image-wrap">
+                    <img class="review-card-image" src="{{ existing_question.answer_image_url }}" alt="Imagem atual da resolução" />
+                  </div>
+                </div>
+                {% endif %}
+                <div
+                  class="review-upload-widget"
+                  data-upload-widget
+                  data-widget-name="answer"
+                  tabindex="0"
+                >
+                  <input
+                    class="review-upload-widget__input"
+                    type="file"
+                    name="answer_image"
+                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
+                    data-file-input
+                  />
+                  <button type="button" class="console-button console-button--ghost console-button--compact review-upload-widget__button" data-file-trigger>Selecionar arquivo</button>
+                  <div class="review-upload-widget__paste" data-paste-zone>
+                    Cole uma imagem aqui com Ctrl+V/Cmd+V ou selecione um arquivo.
+                  </div>
+                  <p class="field-help muted" data-file-hint>Aceita png, jpg, jpeg e webp até {{ form_options.max_image_mb }} MB.</p>
+                  <p class="field-help bad" data-upload-error hidden></p>
+                  <div class="review-upload-widget__preview" data-preview hidden>
+                    <img alt="Preview da imagem da resolução" data-preview-image />
+                    <div class="review-upload-widget__meta">
+                      <span data-preview-name></span>
+                      <button type="button" class="console-button console-button--ghost console-button--compact" data-clear-upload>Remover</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="review-form-actions">
+              <button type="submit" class="console-button console-button--primary">{{ submit_label }}</button>
+              <a class="console-button console-button--ghost" href="{{ back_url }}">Cancelar</a>
+            </div>
+          </form>
+        </section>
+      </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='review-question-form.js') }}"></script>
+{% endblock %}

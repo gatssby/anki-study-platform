@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% set active_page = "reprogramming" %}
+
+{% block title %}Reprogramação - Cronograma{% endblock %}
+{% block body_class %}app-page secondary-page reprogramming-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reprogramming.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">Planejamento global</p>
+          <h1>Reprogramação do cronograma</h1>
+          <p class="console-hero__subtitle">
+            Recalcule UN + FO de hoje até a data-alvo. FO é equilibrado por quantidade, sem teto diário de minutos.
+          </p>
+        </div>
+        <div class="console-hero__meta">
+          <span>Hoje {{ today_br }}</span>
+          <span>Dry-run antes de aplicar</span>
+        </div>
+      </section>
+
+      <section
+        class="reprogramming-app"
+        data-reprogramming-app
+        data-today="{{ today_iso }}"
+        data-initial-year="{{ initial_month.year }}"
+        data-initial-month="{{ initial_month.month }}"
+      >
+        <div class="reprogramming-grid">
+          <section class="console-panel reprogramming-calendar-panel">
+            <div class="console-section-head">
+              <div>
+                <p class="console-panel-label">Calendário</p>
+                <h2 data-calendar-title>Mês</h2>
+              </div>
+              <div class="reprogramming-calendar-nav">
+                <button type="button" class="console-button console-button--ghost console-button--compact" data-prev-month>
+                  <span aria-hidden="true">‹</span> Anterior
+                </button>
+                <button type="button" class="console-button console-button--ghost console-button--compact" data-next-month>
+                  Próximo <span aria-hidden="true">›</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="reprogramming-status-row">
+              <span class="badge" data-simulation-state>Configuração carregada</span>
+              <span class="muted" data-status-message>Salve e simule antes de aplicar.</span>
+            </div>
+
+            <div class="reprogramming-weekdays" aria-hidden="true">
+              <span>Seg</span>
+              <span>Ter</span>
+              <span>Qua</span>
+              <span>Qui</span>
+              <span>Sex</span>
+              <span>Sáb</span>
+              <span>Dom</span>
+            </div>
+
+            <div class="reprogramming-calendar-grid" data-calendar-grid></div>
+          </section>
+
+          <aside class="reprogramming-sidebar">
+            <section class="console-panel">
+              <div class="console-section-head console-section-head--stacked">
+                <div>
+                  <p class="console-panel-label">Configuração</p>
+                  <h2>Parâmetros</h2>
+                </div>
+              </div>
+
+              <form class="console-form reprogramming-form" data-settings-form>
+                <label for="exam_date">Data da prova</label>
+                <input id="exam_date" name="exam_date" type="date" data-setting-input="exam_date" />
+
+                <label for="target_finish_date">Fim das aulas</label>
+                <input id="target_finish_date" name="target_finish_date" type="date" data-setting-input="target_finish_date" />
+
+                <label class="reprogramming-checkbox">
+                  <input type="checkbox" data-setting-input="include_weekends" />
+                  <span>Estudar finais de semana</span>
+                </label>
+
+                <div class="reprogramming-actions">
+                  <button type="button" class="console-button console-button--primary" data-save-settings>
+                    Salvar configurações
+                  </button>
+                  <button type="button" class="console-button console-button--ghost" data-run-simulation>
+                    Simular reprogramação
+                  </button>
+                  <button type="button" class="console-button console-button--primary" data-apply-simulation disabled>
+                    Aplicar reprogramação
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section class="console-panel reprogramming-loading-panel" data-loading-panel hidden>
+              <div class="console-section-head console-section-head--stacked">
+                <div>
+                  <p class="console-panel-label">Processando</p>
+                  <h2>Simulação em andamento</h2>
+                </div>
+              </div>
+              <div class="reprogramming-loading-bar">
+                <span></span>
+              </div>
+              <p class="muted" data-loading-text>Calculando distribuição diária sem teto de minutos...</p>
+            </section>
+
+            <section class="console-panel">
+              <div class="console-section-head">
+                <div>
+                  <p class="console-panel-label">Resumo</p>
+                  <h2>Última simulação</h2>
+                </div>
+              </div>
+
+              <div class="reprogramming-summary" data-summary-empty>
+                <p class="muted">Nenhuma simulação executada.</p>
+              </div>
+
+              <div class="reprogramming-summary" data-summary-content hidden>
+                <div class="reprogramming-summary-grid" data-summary-metrics></div>
+
+                <div class="reprogramming-summary-block">
+                  <h3>Primeiras 14 datas</h3>
+                  <div data-first-days></div>
+                </div>
+
+                <div class="reprogramming-summary-block">
+                  <h3>Últimas 14 datas</h3>
+                  <div data-last-days></div>
+                </div>
+
+                <div class="reprogramming-summary-block">
+                  <h3>Distribuição por semana</h3>
+                  <div data-weekly-distribution></div>
+                </div>
+
+                <div class="reprogramming-summary-block" data-apply-summary hidden>
+                  <h3>Aplicação concluída</h3>
+                  <div data-apply-summary-content></div>
+                  <a class="console-button console-button--ghost console-button--compact" href="{{ url_for('dashboard') }}">
+                    Voltar à home
+                  </a>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <div class="reprogramming-modal" data-day-modal hidden>
+          <div class="reprogramming-modal__backdrop" data-close-modal></div>
+          <div class="reprogramming-modal__card" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
+            <div class="console-section-head">
+              <div>
+                <p class="console-panel-label">Data selecionada</p>
+                <h2 id="day-modal-title" data-modal-date-title>Dia</h2>
+              </div>
+              <button type="button" class="console-button console-button--ghost console-button--compact" data-close-modal>
+                Fechar
+              </button>
+            </div>
+
+            <div class="reprogramming-modal__actions">
+              <button type="button" class="console-button console-button--primary" data-modal-action="set-exam">
+                Marcar como prova
+              </button>
+              <button type="button" class="console-button console-button--primary" data-modal-action="set-target">
+                Marcar fim das aulas
+              </button>
+              <button type="button" class="console-button console-button--ghost" data-modal-action="toggle-unavailable">
+                Marcar indisponível
+              </button>
+              <button type="button" class="console-button console-button--ghost" data-modal-action="remove-unavailable" hidden>
+                Remover indisponibilidade
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='reprogramming.js') }}"></script>
+{% endblock %}

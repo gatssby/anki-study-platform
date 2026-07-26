@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+{% from "components/ui.html" import empty_state, icon, status_badge %}
+{% set active_page = "dashboard" %}
+
+{% block title %}Cronograma{% endblock %}
+{% block body_class %}app-page dashboard-page{% endblock %}
+{% block main_class %}app-container{% endblock %}
+
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+
+{% block content %}
+      <section class="dashboard-page-title" aria-labelledby="dashboard-title">
+        <div>
+          <p class="app-eyebrow">Planejamento diário</p>
+          <h1 id="dashboard-title">Seu dia de estudos</h1>
+          <p>{{ selected_date|br_date }} · {{ schedule_summary.business_days_remaining }} dias úteis restantes</p>
+        </div>
+        <div class="app-meta-group" aria-label="Resumo do ritmo">
+          <span>Meta UN {{ un_section.target_duration_seconds|duration }}/dia</span>
+          <span>FO {{ dashboard_progress.FO.pace_summary }}</span>
+          <span>UN {{ dashboard_progress.UN.pace_summary }}</span>
+        </div>
+      </section>
+
+      {% if not has_data %}
+      <section class="app-card dashboard-no-data">
+        {{ empty_state('alert-triangle', 'Nenhum dado importado', 'Importe uma base FO para começar a usar o cronograma.') }}
+      </section>
+      {% endif %}
+
+      <div class="dashboard-toolbar">
+        <form method="get" class="dashboard-date-form" data-date-form>
+          <div class="dashboard-date-field">
+            <label for="date_display">Data</label>
+            <div class="date-input-shell">
+              <input
+                id="date_display"
+                type="text"
+                inputmode="numeric"
+                placeholder="dd/mm/aaaa"
+                value="{{ selected_date|br_date }}"
+                class="app-field date-text-input"
+                data-date-display
+              />
+              <span class="date-picker-trigger">{{ icon('calendar') }}</span>
+              <input
+                type="date"
+                value="{{ selected_date }}"
+                class="date-picker-native"
+                aria-label="Selecionar data"
+                tabindex="-1"
+                data-date-picker
+              />
+            </div>
+            <p class="app-field-help" data-date-error hidden>Use o formato dd/mm/aaaa.</p>
+          </div>
+          <button type="submit" class="app-btn app-btn--primary">Atualizar</button>
+          <input id="date" type="hidden" name="date" value="{{ selected_date }}" data-date-iso />
+          <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+          {% for key, value in dashboard_extra_query_items %}
+          <input type="hidden" name="{{ key }}" value="{{ value }}" />
+          {% endfor %}
+        </form>
+
+        <nav class="dashboard-view-tabs" aria-label="Visualização FO">
+          <a class="{{ 'is-active' if fo_view == 'aulas' else '' }}" href="{{ dashboard_url(fo_view_value='aulas') }}" {% if fo_view == 'aulas' %}aria-current="page"{% endif %}>Aulas</a>
+          <a class="{{ 'is-active' if fo_view == 'exercicios' else '' }}" href="{{ dashboard_url(fo_view_value='exercicios') }}" {% if fo_view == 'exercicios' %}aria-current="page"{% endif %}>Exercícios</a>
+          <a class="{{ 'is-active' if fo_view == 'tudo' else '' }}" href="{{ dashboard_url(fo_view_value='tudo') }}" {% if fo_view == 'tudo' %}aria-current="page"{% endif %}>Tudo</a>
+        </nav>
+      </div>
+
+      <section class="app-card dashboard-summary" aria-label="Progresso das trilhas">
+        <div class="dashboard-progress-item">
+          <div class="dashboard-progress-item__head">
+            <strong>Federal Online</strong>
+            <b>{{ dashboard_progress.FO.progress_percent }}%</b>
+          </div>
+          <div class="app-progress" role="progressbar" aria-label="Progresso Federal Online" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ dashboard_progress.FO.progress_percent }}">
+            <div class="app-progress__bar" style="width: {{ dashboard_progress.FO.progress_percent }}%;"></div>
+          </div>
+          <div class="dashboard-progress-item__numbers">
+            <span>{{ dashboard_progress.FO.seen_lessons }} concluídas</span>
+            <span>{{ dashboard_progress.FO.total_lessons - dashboard_progress.FO.seen_lessons }} restantes</span>
+          </div>
+        </div>
+        <div class="dashboard-progress-item">
+          <div class="dashboard-progress-item__head">
+            <strong>Universo Narrado</strong>
+            <b>{{ dashboard_progress.UN.progress_percent }}%</b>
+          </div>
+          <div class="app-progress" role="progressbar" aria-label="Progresso Universo Narrado" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ dashboard_progress.UN.progress_percent }}">
+            <div class="app-progress__bar app-progress__bar--success" style="width: {{ dashboard_progress.UN.progress_percent }}%;"></div>
+          </div>
+          <div class="dashboard-progress-item__numbers">
+            <span>{{ dashboard_progress.UN.seen_lessons }} concluídas</span>
+            <span>{{ dashboard_progress.UN.total_lessons - dashboard_progress.UN.seen_lessons }} restantes</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="dashboard-layout">
+        <section class="dashboard-main" aria-label="Cronograma do dia">
+          {% if fo_view in ['aulas', 'tudo'] %}
+          <section class="app-card dashboard-section" aria-labelledby="fo-lessons-title">
+            <header class="dashboard-section__header app-section-heading">
+              <div>
+                <p class="app-eyebrow">Federal Online</p>
+                <h2 id="fo-lessons-title">Aulas do dia</h2>
+              </div>
+              <div class="app-meta-group">
+                <span>{{ selected_date|br_date }}</span>
+                <span>{{ fo_total_duration_seconds|duration }}</span>
+              </div>
+            </header>
+
+            {% if fo_rows %}
+            <div class="dashboard-list">
+              {% for row in fo_rows %}
+              {% set planned = row.planned %}
+              {% set target = row.target %}
+              <article class="lesson-row {{ 'is-seen' if target.is_seen else '' }}">
+                <div class="lesson-row__subject">
+                  <strong>{{ target.subject_prefix or planned.subject_prefix }}</strong>
+                  <span>{% if target.module_label %}{{ target.module_label }} · {% endif %}M{{ planned.slot_index }} · Sem {{ planned.week_number }}</span>
+                </div>
+                <div class="lesson-row__title">
+                  <strong>{{ lesson_label(target) }}</strong>
+                  <span>{{ 'Concluída' if target.is_seen else ('Pendente' if target.lesson_type != 'pending' else 'Aguardando liberação') }}</span>
+                </div>
+                <div class="lesson-row__meta">
+                  {% if target.lesson_type == 'lesson' %}<span>{{ icon('clock') }} {{ target.duration_seconds|duration }}</span>{% endif %}
+                  {% if row.warning %}
+                  <span class="app-status app-status--warning">{{ icon('alert-triangle') }}{{ row.delay_count }} atrasada{{ 's' if row.delay_count != 1 else '' }}</span>
+                  {% else %}
+                  <span>Em dia</span>
+                  {% endif %}
+                </div>
+                {% if target.lesson_type != 'pending' %}
+                <form method="post" action="{{ url_for('toggle_seen', lesson_code=target.lesson_code) }}" data-preserve-scroll>
+                  <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                  <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                  <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                  <button type="submit" class="app-btn app-btn--secondary app-btn--compact">
+                    {{ icon('check') }}{{ 'Desmarcar' if target.is_seen else 'Marcar vista' }}
+                  </button>
+                </form>
+                {% endif %}
+              </article>
+              {% endfor %}
+            </div>
+            {% else %}
+            {{ empty_state('book-2', 'Nenhuma aula para esta data', 'Escolha outro dia ou consulte a base completa.') }}
+            {% endif %}
+          </section>
+          {% endif %}
+
+          {% if fo_view in ['exercicios', 'tudo'] %}
+          {% set exercise_status_labels = {'pending': 'Pendente', 'done': 'Concluído', 'skipped': 'Ignorado'} %}
+          <section class="app-card dashboard-section" aria-labelledby="fo-exercises-title">
+            <header class="dashboard-section__header app-section-heading">
+              <div>
+                <p class="app-eyebrow">Exercícios FO</p>
+                <h2 id="fo-exercises-title">Tarefas do dia</h2>
+              </div>
+              <div class="app-meta-group">
+                <span>{{ fo_exercise_section.counts.visible_total }} tarefa{{ 's' if fo_exercise_section.counts.visible_total != 1 else '' }}</span>
+                <span>{{ fo_exercise_section.counts.overdue_total }} atrasada{{ 's' if fo_exercise_section.counts.overdue_total != 1 else '' }}</span>
+              </div>
+            </header>
+
+            {% if fo_exercise_section.rows %}
+            <div class="dashboard-list">
+              {% for task in fo_exercise_section.rows %}
+              <article class="exercise-row {{ 'is-overdue' if task.is_overdue else '' }}">
+                <div class="exercise-row__main">
+                  <div class="exercise-row__title">
+                    <strong>{{ lesson_label(task) }}</strong>
+                    <details class="exercise-meta-disclosure" open>
+                      <summary>Detalhes</summary>
+                    <div class="exercise-row__meta">
+                      <span>{{ task.subject_prefix or '-' }}{% if task.module_label %} · {{ task.module_label }}{% endif %}</span>
+                      <span>{{ task.scheduled_date|br_date }}</span>
+                      <span>{{ task.lesson_code }}</span>
+                      {% if task.is_overdue %}<span class="app-status app-status--warning">{{ icon('alert-triangle') }}Atrasado</span>{% elif task.manually_moved %}<span>Movido</span>{% else %}<span>D + {{ fo_exercise_section.offset_days }}</span>{% endif %}
+                    </div>
+                    </details>
+                  </div>
+                  {{ status_badge(task.status, exercise_status_labels[task.status]) }}
+                </div>
+
+                <details class="exercise-controls-disclosure" open>
+                  <summary>Ações</summary>
+                <div class="exercise-row__controls">
+                  <div class="exercise-status-actions" aria-label="Alterar status do exercício">
+                    {% for status in ['pending', 'done', 'skipped'] %}
+                    <form method="post" action="{{ url_for('set_exercise_status', task_id=task.id) }}" data-preserve-scroll>
+                      <input type="hidden" name="status" value="{{ status }}" />
+                      <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                      <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                      <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                      <button type="submit" class="app-btn app-btn--ghost app-btn--compact {{ 'is-current' if task.status == status else '' }}" {% if task.status == status %}aria-current="true"{% endif %}>{{ exercise_status_labels[status] }}</button>
+                    </form>
+                    {% endfor %}
+                  </div>
+
+                  <form method="post" action="{{ url_for('reschedule_exercise', task_id=task.id) }}" class="exercise-reschedule-form" data-date-form data-preserve-scroll>
+                    <label class="app-visually-hidden" for="exercise_date_display_{{ task.id }}">Nova data de {{ lesson_label(task) }}</label>
+                    <div class="date-input-shell">
+                      <input
+                        id="exercise_date_display_{{ task.id }}"
+                        type="text"
+                        inputmode="numeric"
+                        placeholder="dd/mm/aaaa"
+                        value="{{ task.scheduled_date|br_date }}"
+                        class="app-field date-text-input"
+                        data-date-display
+                      />
+                      <span class="date-picker-trigger">{{ icon('calendar') }}</span>
+                      <input type="date" value="{{ task.scheduled_date }}" class="date-picker-native" aria-label="Selecionar data do exercício" tabindex="-1" data-date-picker />
+                    </div>
+                    <button type="submit" class="app-btn app-btn--secondary app-btn--compact">Mover</button>
+                    <input type="hidden" name="scheduled_date" value="{{ task.scheduled_date }}" data-date-iso />
+                    <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                    <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                    <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                    <p class="app-field-help" data-date-error hidden>Use o formato dd/mm/aaaa.</p>
+                  </form>
+                </div>
+                </details>
+              </article>
+              {% endfor %}
+            </div>
+            {% else %}
+            {{ empty_state('list-check', 'Nenhum exercício ativo', 'As tarefas desta data aparecerão aqui.') }}
+            {% endif %}
+          </section>
+          {% endif %}
+
+          <section class="app-card dashboard-section" aria-labelledby="un-lessons-title">
+            <header class="dashboard-section__header app-section-heading">
+              <div>
+                <p class="app-eyebrow">Universo Narrado</p>
+                <h2 id="un-lessons-title">Próximos módulos</h2>
+              </div>
+              <div class="app-meta-group">
+                <span>Meta {{ un_section.target_duration_seconds|duration }}/dia</span>
+                <span>Hoje {{ un_section.total_duration_seconds|duration }}</span>
+                <span>{{ un_section.queue_size }} módulo{{ 's' if un_section.queue_size != 1 else '' }}</span>
+                <span>{{ un_section.pending_item_count }} itens</span>
+              </div>
+            </header>
+
+            {% if un_rows %}
+            <div class="un-module-list" data-un-modules>
+              {% for row in un_rows %}
+              <article class="un-module-card {{ 'is-overdue' if row.is_overdue else '' }}">
+                <details class="un-module-details" data-un-module-details data-un-module-id="{{ row.module_path }}">
+                  <summary>
+                    <span class="un-module-summary__title">
+                      <strong>#{{ "%02d"|format(loop.index) }} · {{ row.subject_prefix }} · {{ row.module_name }}</strong>
+                      <span>{{ row.seen_lesson_count }}/{{ row.total_lesson_count }} aulas · {{ row.pending_item_count }} pendentes</span>
+                    </span>
+                    <span class="un-module-summary__meta">
+                      <span>{{ row.pending_duration_seconds|duration }}</span>
+                      {% if row.is_overdue %}<span class="app-status app-status--warning">{{ icon('alert-triangle') }}{{ row.overdue_days }} dia{{ 's' if row.overdue_days != 1 else '' }}</span>{% else %}<span>Em dia</span>{% endif %}
+                      {{ icon('chevron-down') }}
+                    </span>
+                  </summary>
+                  <div class="un-lesson-list">
+                    {% for lesson in row.lessons %}
+                    <div class="un-lesson-row {{ 'is-seen' if lesson.is_seen else '' }}">
+                      <div class="un-lesson-row__title">
+                        <strong class="{{ 'list-item-title' if lesson.lesson_type == 'list' else '' }}">{{ lesson.title_raw }}</strong>
+                        <span>{{ 'Visto' if lesson.is_seen else 'Pendente' }} · {{ 'Lista' if lesson.lesson_type == 'list' else 'Aula' }}{% if lesson.lesson_type == 'lesson' %} · {{ lesson.duration_seconds|duration }}{% endif %}</span>
+                      </div>
+                      <form method="post" action="{{ url_for('toggle_seen', lesson_code=lesson.lesson_code) }}" data-un-toggle-form data-preserve-scroll data-preserve-un-modules>
+                        <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                        <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                        <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                        <button type="submit" class="app-btn app-btn--ghost app-btn--compact">{{ 'Desmarcar' if lesson.is_seen else ('Feito' if lesson.lesson_type == 'list' else 'Marcar vista') }}</button>
+                      </form>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </details>
+                <form method="post" action="{{ url_for('mark_un_module_seen') }}" onsubmit="return confirm('Marcar todas as aulas pendentes deste módulo como vistas?');" data-preserve-scroll data-preserve-un-modules>
+                  <input type="hidden" name="module_path" value="{{ row.module_path }}" />
+                  <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                  <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                  <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                  <button type="submit" class="app-btn app-btn--secondary app-btn--compact">{{ icon('check') }}Concluir módulo</button>
+                </form>
+              </article>
+              {% endfor %}
+            </div>
+            {% else %}
+            {{ empty_state('circle-check', 'UN em dia', 'Não há aulas pendentes do Universo Narrado.') }}
+            {% endif %}
+          </section>
+        </section>
+
+        <aside class="dashboard-sidebar" aria-label="Apoio ao planejamento">
+          <details class="app-card dashboard-settings">
+            <summary>
+              <span>Exercícios em D + {{ fo_exercise_section.offset_days }}</span>
+              {{ icon('chevron-down') }}
+            </summary>
+            <form method="post" action="{{ url_for('update_fo_exercise_settings') }}" class="dashboard-settings__form" data-preserve-scroll>
+              <label for="exercise_offset_days" class="app-meta">Dias após aula vista</label>
+              <div class="dashboard-settings__row">
+                <input id="exercise_offset_days" class="app-field" type="number" min="0" step="1" name="offset_days" value="{{ fo_exercise_section.offset_days }}" />
+                <button type="submit" class="app-btn app-btn--primary">Salvar</button>
+              </div>
+              <input type="hidden" name="next_date" value="{{ selected_date }}" />
+              <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+              <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+            </form>
+          </details>
+
+          <section class="app-card dashboard-sidebar-card">
+            <p class="app-eyebrow">Questões de revisão</p>
+            <h2>Fila curta</h2>
+            <div class="review-quick-stats">
+              <div><span>Hoje</span><strong>{{ review_question_stats.due_today }}</strong></div>
+              <div><span>Atrasadas</span><strong>{{ review_question_stats.overdue }}</strong></div>
+            </div>
+            <div class="sidebar-actions">
+              <a class="app-btn app-btn--primary app-btn--compact" href="{{ url_for('review_questions_review') }}">Revisar agora</a>
+              <a class="app-btn app-btn--ghost app-btn--compact" href="{{ url_for('review_questions_home') }}">Ver banco</a>
+            </div>
+          </section>
+
+          <section class="app-card dashboard-sidebar-card">
+            <p class="app-eyebrow">Compensação FO</p>
+            <h2>Atrasadas recomendadas</h2>
+            {% if overdue_recommendations %}
+            <div class="overdue-list">
+              {% for lesson in overdue_recommendations %}
+              <article class="overdue-item">
+                <span>{{ lesson.recommended_date|br_date }} · {{ lesson.subject_prefix }}{% if lesson.module_label %} · {{ lesson.module_label }}{% endif %}</span>
+                <strong>{{ lesson_label(lesson) }}</strong>
+                <form method="post" action="{{ url_for('toggle_seen', lesson_code=lesson.lesson_code) }}" data-preserve-scroll>
+                  <input type="hidden" name="next_date" value="{{ selected_date }}" />
+                  <input type="hidden" name="fo_view" value="{{ fo_view }}" />
+                  <input type="hidden" name="return_to" value="{{ dashboard_url() }}" />
+                  <button type="submit" class="app-btn app-btn--secondary app-btn--compact">{{ icon('check') }}Marcar vista</button>
+                </form>
+              </article>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="app-empty-state">
+              <span class="app-empty-state__icon">{{ icon('circle-check') }}</span>
+              <div><h3>Em dia</h3><p>Nenhuma compensação sugerida.</p></div>
+            </div>
+            {% endif %}
+          </section>
+        </aside>
+      </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='date-field.js') }}"></script>
+    <script src="{{ url_for('static', filename='scroll-preserve.js') }}"></script>
+{% endblock %}

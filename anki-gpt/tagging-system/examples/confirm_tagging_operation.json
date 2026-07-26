@@ -1,0 +1,11 @@
+{
+  "operation_id": "tagop-20260417T120000000000Z-example",
+  "status": "applied",
+  "addon_profile": "User 1",
+  "affected_note_ids": [
+    1609552058612,
+    1621488655312
+  ],
+  "affected_count": 2,
+  "errors": []
+}

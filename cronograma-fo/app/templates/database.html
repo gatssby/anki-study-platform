@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+{% set active_page = "database" %}
+
+{% block title %}Base de dados - Cronograma{% endblock %}
+{% block body_class %}app-page secondary-page database-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/database.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">Arquivo operacional</p>
+          <h1>Base de dados</h1>
+          <p class="console-hero__subtitle">{{ stats.seen_lessons }} de {{ stats.total_lessons }} itens concluídos</p>
+        </div>
+
+        <div class="console-hero__meta">
+          <span>Progresso {{ stats.overall_percent }}%</span>
+          <span>Atraso {{ stats.overdue }}</span>
+        </div>
+      </section>
+
+      <section class="database-summary-grid">
+        <section class="console-panel">
+          <div class="console-section-head console-section-head--stacked">
+            <div>
+              <p class="console-panel-label">Progresso geral</p>
+              <h2>Panorama</h2>
+            </div>
+          </div>
+          <div class="console-progress-card console-progress-card--large">
+            <div class="console-progress-card__top">
+              <span>Total</span>
+              <strong>{{ stats.overall_percent }}%</strong>
+            </div>
+            <div class="console-progress-head">
+              <span>Concluído</span>
+              <span>{{ stats.seen_lessons }}/{{ stats.total_lessons }}</span>
+            </div>
+            <div class="console-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ stats.overall_percent }}">
+              <div class="console-progress-bar__fill" style="width: {{ stats.overall_percent }}%;"></div>
+            </div>
+            <p class="console-progress-copy">{{ stats.overdue }} item(ns) em atraso no ritmo atual.</p>
+          </div>
+        </section>
+
+        <section class="console-panel">
+          <div class="console-section-head console-section-head--stacked">
+            <div>
+              <p class="console-panel-label">Busca e filtros</p>
+              <h2>Consulta da base</h2>
+            </div>
+          </div>
+
+          <form method="get" class="console-filter-form" data-filter-form data-track-state="{{ track_filter }}">
+            <input type="hidden" name="status" value="{{ status_filter }}" data-filter-input="status" />
+            <input type="hidden" name="track" value="{{ track_filter }}" data-filter-input="track" />
+            <input type="hidden" name="subject" value="{{ subject_filter }}" data-filter-input="subject" />
+            <input type="hidden" name="front" value="{{ front_filter }}" data-filter-input="front" />
+            <input type="hidden" name="page" value="1" data-filter-input="page" />
+
+            <div class="console-search-row">
+              <label class="console-search-field">
+                <span>Buscar</span>
+                <input type="text" name="q" value="{{ search }}" placeholder="código, matéria, título..." />
+              </label>
+              <div class="console-filter-actions">
+                <button type="submit" class="console-button console-button--primary">Aplicar</button>
+                <a class="console-button console-button--ghost" href="{{ url_for('database_view') }}">Limpar</a>
+              </div>
+            </div>
+
+            <details class="database-filter-details" open>
+              <summary>Filtros avançados</summary>
+            <div class="console-filter-groups" data-dependent-row>
+              <section class="console-filter-group">
+                <p class="console-filter-label">Status</p>
+                <div class="console-chip-row" data-chip-group="status">
+                  <button type="button" class="console-chip {{ 'active' if status_filter == 'all' else '' }}" aria-pressed="{{ 'true' if status_filter == 'all' else 'false' }}" data-filter-target="status" data-filter-value="all">Todas</button>
+                  <button type="button" class="console-chip {{ 'active' if status_filter == 'unseen' else '' }}" aria-pressed="{{ 'true' if status_filter == 'unseen' else 'false' }}" data-filter-target="status" data-filter-value="unseen">Pendentes</button>
+                  <button type="button" class="console-chip {{ 'active' if status_filter == 'seen' else '' }}" aria-pressed="{{ 'true' if status_filter == 'seen' else 'false' }}" data-filter-target="status" data-filter-value="seen">Vistas</button>
+                </div>
+              </section>
+
+              <section class="console-filter-group">
+                <p class="console-filter-label">Trilha</p>
+                <div class="console-chip-row" data-chip-group="track">
+                  <button type="button" class="console-chip {{ 'active' if track_filter == 'all' else '' }}" aria-pressed="{{ 'true' if track_filter == 'all' else 'false' }}" data-filter-target="track" data-filter-value="all">Todas</button>
+                  <button type="button" class="console-chip {{ 'active' if track_filter == 'FO' else '' }}" aria-pressed="{{ 'true' if track_filter == 'FO' else 'false' }}" data-filter-target="track" data-filter-value="FO">FO</button>
+                  <button type="button" class="console-chip {{ 'active' if track_filter == 'UN' else '' }}" aria-pressed="{{ 'true' if track_filter == 'UN' else 'false' }}" data-filter-target="track" data-filter-value="UN">UN</button>
+                </div>
+              </section>
+
+              <section class="console-filter-group {{ 'is-collapsed' if track_filter == 'all' else '' }}" data-dependent-panel="subject">
+                <p class="console-filter-label">Matéria</p>
+                <div class="console-chip-row {{ 'is-hidden' if track_filter == 'all' else '' }}" data-chip-group="subject">
+                  <button type="button" class="console-chip {{ 'active' if subject_filter == 'all' else '' }}" aria-pressed="{{ 'true' if subject_filter == 'all' else 'false' }}" data-filter-target="subject" data-filter-value="all">Todas</button>
+                  {% for subject in filter_options.subjects.FO %}
+                  <button
+                    type="button"
+                    class="console-chip track-chip {{ 'active' if track_filter == 'FO' and subject_filter == subject else '' }} {{ '' if track_filter == 'FO' else 'is-hidden' }}"
+                    aria-pressed="{{ 'true' if track_filter == 'FO' and subject_filter == subject else 'false' }}"
+                    data-filter-target="subject"
+                    data-filter-value="{{ subject }}"
+                    data-subject-track="FO"
+                  >{{ subject }}</button>
+                  {% endfor %}
+                  {% for subject in filter_options.subjects.UN %}
+                  <button
+                    type="button"
+                    class="console-chip track-chip {{ 'active' if track_filter == 'UN' and subject_filter == subject else '' }} {{ '' if track_filter == 'UN' else 'is-hidden' }}"
+                    aria-pressed="{{ 'true' if track_filter == 'UN' and subject_filter == subject else 'false' }}"
+                    data-filter-target="subject"
+                    data-filter-value="{{ subject }}"
+                    data-subject-track="UN"
+                  >{{ subject }}</button>
+                  {% endfor %}
+                </div>
+              </section>
+
+              <section class="console-filter-group {{ 'is-collapsed' if track_filter != 'FO' else '' }}" data-dependent-panel="front">
+                <p class="console-filter-label">Frente</p>
+                <div class="console-chip-row {{ '' if track_filter == 'FO' else 'is-hidden' }}" data-chip-group="front">
+                  <button type="button" class="console-chip {{ 'active' if front_filter == 'all' else '' }}" aria-pressed="{{ 'true' if front_filter == 'all' else 'false' }}" data-filter-target="front" data-filter-value="all">Todas</button>
+                  {% for front in filter_options.fronts %}
+                  <button type="button" class="console-chip {{ 'active' if front_filter == front else '' }}" aria-pressed="{{ 'true' if front_filter == front else 'false' }}" data-filter-target="front" data-filter-value="{{ front }}">{{ front }}</button>
+                  {% endfor %}
+                </div>
+              </section>
+            </div>
+            </details>
+          </form>
+        </section>
+      </section>
+
+      <section class="console-panel">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Itens</p>
+            <h2>Resultados</h2>
+          </div>
+          {% if pagination.total_rows %}
+          <p class="console-meta">{{ pagination.page_start }}-{{ pagination.page_end }} de {{ pagination.total_rows }} registro(s)</p>
+          {% endif %}
+        </div>
+
+        {% if pagination.total_rows %}
+        <nav class="console-pagination" aria-label="Paginação da base de dados">
+          <div class="console-pagination__status">
+            Página {{ pagination.page }} de {{ pagination.total_pages }} · {{ pagination.page_size }} por página
+          </div>
+          <div class="console-pagination__actions">
+            {% if pagination.has_prev %}
+            <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.prev_url }}">Anterior</a>
+            {% else %}
+            <span class="console-button console-button--ghost console-button--compact disabled" aria-disabled="true">Anterior</span>
+            {% endif %}
+            {% if pagination.has_next %}
+            <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.next_url }}">Próxima</a>
+            {% else %}
+            <span class="console-button console-button--ghost console-button--compact disabled" aria-disabled="true">Próxima</span>
+            {% endif %}
+          </div>
+        </nav>
+        {% endif %}
+
+        {% if rows %}
+        <div class="console-table-wrap">
+          {% if track_filter == 'FO' %}
+          <table class="console-table console-table--database console-table--fo-base">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Matéria</th>
+                <th>Aula</th>
+                <th>Duração</th>
+                <th>Status</th>
+                <th>Vista em</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>
+                  <div>{{ row.recommended_date|br_date }}</div>
+                  <small class="console-inline-meta">M{{ row.slot_index }} · SEM {{ row.week_number }}</small>
+                </td>
+                <td>
+                  <div class="fo-subject">
+                    <span class="console-table-kicker">{{ row.subject_prefix or '-' }}</span>
+                    {% if row.module_label %}
+                    <small class="console-inline-meta">{{ row.module_label }}</small>
+                    {% endif %}
+                  </div>
+                </td>
+                <td>
+                  <div class="fo-title-cell">
+                    <span class="console-table-title">{{ lesson_label(row) }}</span>
+                    <small class="console-inline-meta">{{ row.lesson_code }}</small>
+                    <details class="database-mobile-details">
+                      <summary>Detalhes</summary>
+                      <span>Código {{ row.lesson_code }} · Semana {{ row.week_number }} · {{ row.module_label or 'Sem módulo' }} · {{ row.duration_seconds|duration if row.lesson_type == 'lesson' else 'Sem duração' }} · {{ row.seen_at|br_datetime }}</span>
+                    </details>
+                  </div>
+                </td>
+                <td>
+                  {% if row.lesson_type == 'lesson' %}
+                  <span class="fo-duration">{{ row.duration_seconds|duration }}</span>
+                  {% else %}
+                  <span class="console-inline-meta">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.lesson_type == 'pending' %}
+                  <span class="badge">Aguardando</span>
+                  {% elif row.is_seen %}
+                  <span class="ok">Vista</span>
+                  {% else %}
+                  <span class="status-muted">Pendente</span>
+                  {% endif %}
+                </td>
+                <td><span class="console-inline-meta">{{ row.seen_at|br_datetime }}</span></td>
+                <td class="right">
+                  {% if row.lesson_type != 'pending' %}
+                  <form method="post" action="{{ url_for('toggle_seen', lesson_code=row.lesson_code) }}" data-preserve-scroll>
+                    <input type="hidden" name="next_date" value="{{ row.recommended_date }}" />
+                    <input type="hidden" name="return_to" value="{{ request.full_path if request.query_string else request.path }}" />
+                    <button type="submit" class="console-button console-button--ghost console-button--compact">
+                      {{ 'Desmarcar' if row.is_seen else ('Feito' if row.lesson_type == 'list' else 'Marcar vista') }}
+                    </button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <table class="console-table console-table--database">
+            <thead>
+              <tr>
+                <th>Trilha</th>
+                <th>Código</th>
+                <th>Data</th>
+                <th>Bloco</th>
+                <th>Disc.</th>
+                <th>Módulo</th>
+                <th>Título</th>
+                <th>Duração</th>
+                <th>Status</th>
+                <th>Vista em</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td><span class="console-inline-meta">{{ row.track_code }}</span></td>
+                <td><code>{{ row.lesson_code }}</code></td>
+                <td>{{ row.recommended_date|br_date }}</td>
+                <td>
+                  <div class="console-table-kicker">{{ row.day_name }} / M{{ row.slot_index }}</div>
+                  <small class="console-inline-meta">SEM {{ row.week_number }}</small>
+                </td>
+                <td><span class="console-inline-meta">{{ row.subject_prefix or '-' }}</span></td>
+                <td>{{ row.module_label or '-' }}</td>
+                <td>
+                  <span class="console-table-title {{ 'list-item-title' if row.lesson_type == 'list' else '' }}">{{ lesson_label(row) }}</span>
+                  {% if row.lesson_number %}
+                  <small class="console-inline-meta">AULA {{ row.lesson_number }}</small>
+                  {% endif %}
+                  <details class="database-mobile-details">
+                    <summary>Detalhes</summary>
+                    <span>{{ row.track_code }} · {{ row.lesson_code }} · {{ row.day_name }} / M{{ row.slot_index }} · Semana {{ row.week_number }} · {{ row.module_label or 'Sem módulo' }} · {{ row.duration_seconds|duration if row.lesson_type == 'lesson' else 'Sem duração' }} · {{ row.seen_at|br_datetime }}</span>
+                  </details>
+                </td>
+                <td>
+                  {% if row.lesson_type == 'lesson' %}
+                  <span class="console-inline-meta">{{ row.duration_seconds|duration }}</span>
+                  {% else %}
+                  <span class="console-inline-meta">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.lesson_type == 'pending' %}
+                  <span class="badge">Aguardando</span>
+                  {% elif row.is_seen %}
+                  <span class="ok">Vista</span>
+                  {% else %}
+                  <span class="status-muted">Pendente</span>
+                  {% endif %}
+                </td>
+                <td><span class="console-inline-meta">{{ row.seen_at|br_datetime }}</span></td>
+                <td class="right">
+                  {% if row.lesson_type != 'pending' %}
+                  <form method="post" action="{{ url_for('toggle_seen', lesson_code=row.lesson_code) }}" data-preserve-scroll>
+                    <input type="hidden" name="next_date" value="{{ row.recommended_date }}" />
+                    <input type="hidden" name="return_to" value="{{ request.full_path if request.query_string else request.path }}" />
+                    <button type="submit" class="console-button console-button--ghost console-button--compact">
+                      {{ 'Desmarcar' if row.is_seen else ('Feito' if row.lesson_type == 'list' else 'Marcar vista') }}
+                    </button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="console-empty-state">
+          <p class="muted">Nenhum resultado para os filtros atuais.</p>
+        </div>
+        {% endif %}
+
+        {% if pagination.total_rows and pagination.total_pages > 1 %}
+        <nav class="console-pagination console-pagination--bottom" aria-label="Paginação da base de dados">
+          <div class="console-pagination__status">
+            Página {{ pagination.page }} de {{ pagination.total_pages }}
+          </div>
+          <div class="console-pagination__actions">
+            {% if pagination.has_prev %}
+            <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.prev_url }}">Anterior</a>
+            {% endif %}
+            {% if pagination.has_next %}
+            <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.next_url }}">Próxima</a>
+            {% endif %}
+          </div>
+        </nav>
+        {% endif %}
+      </section>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='database-filters.js') }}"></script>
+    <script src="{{ url_for('static', filename='scroll-preserve.js') }}"></script>
+{% endblock %}

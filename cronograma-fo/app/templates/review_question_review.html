@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% set active_page = "questions" %}
+
+{% block title %}Revisar Hoje - Cronograma{% endblock %}
+{% block body_class %}app-page secondary-page review-page review-session-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/review.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+{% block head_scripts %}
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$']],
+          displayMath: [['$$', '$$']],
+        },
+        options: {
+          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+        },
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">Revisão focada</p>
+          <h1>Revisar hoje</h1>
+          <p class="console-hero__subtitle">Uma questão por vez. Responda, ajuste a dificuldade e avance.</p>
+        </div>
+
+        <div class="console-hero__meta">
+          <span>{{ pending_count }} questões pendentes</span>
+          <span>{{ 'Questão específica' if forced_question_id else 'Fila do dia' }}</span>
+        </div>
+      </section>
+
+      {% if current_question %}
+      <section class="review-review-layout">
+        <aside class="review-questions-sidebar">
+          <section class="console-panel console-panel--accent">
+            <div class="console-section-head console-section-head--stacked">
+              <div>
+                <p class="console-panel-label">Progresso</p>
+                <h2>{{ pending_count }} pendente{{ 's' if pending_count != 1 else '' }}</h2>
+              </div>
+            </div>
+            <div class="console-progress-card console-progress-card--large">
+              <div class="console-progress-card__top">
+                <span>Matéria</span>
+                <strong>{{ current_question.subject }}</strong>
+              </div>
+              <div class="console-progress-head">
+                <span>Dificuldade</span>
+                <span>{{ current_question.difficulty }}</span>
+              </div>
+              <div class="console-progress-bar" role="presentation">
+                <div class="console-progress-bar__fill" style="width: {{ (100 / pending_count) if pending_count else 100 }}%;"></div>
+              </div>
+              <p class="console-progress-copy">Próxima revisão atual: {{ current_question.next_review_date|br_date }}</p>
+            </div>
+          </section>
+
+          <section class="console-panel">
+            <div class="console-section-head console-section-head--stacked">
+              <div>
+                <p class="console-panel-label">Ações rápidas</p>
+                <h2>Sessão</h2>
+              </div>
+            </div>
+            <div class="review-quick-actions">
+              <form method="post" action="{{ url_for('review_questions_review') }}">
+                <input type="hidden" name="action" value="defer" />
+                <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                <button type="submit" class="console-button console-button--ghost">Deixar para o fim</button>
+              </form>
+              <form method="post" action="{{ url_for('review_questions_review') }}">
+                <input type="hidden" name="action" value="postpone" />
+                <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                <button type="submit" class="console-button console-button--ghost">Revisar amanhã</button>
+              </form>
+              <form method="post" action="{{ url_for('review_questions_review') }}">
+                <input type="hidden" name="action" value="suspend" />
+                <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                <button type="submit" class="console-button console-button--ghost">Suspender</button>
+              </form>
+            </div>
+          </section>
+        </aside>
+
+        <section class="console-panel console-panel--deep">
+          <div class="console-section-head">
+            <div>
+              <p class="console-panel-label">Questão</p>
+              <h2>{{ current_question.display_title }}</h2>
+            </div>
+            <div class="review-success-actions">
+              <a
+                class="console-button console-button--ghost console-button--compact"
+                href="{{ url_for('review_questions_edit', question_id=current_question.id, return_to=url_for('review_questions_review', question_id=current_question.id)) }}"
+              >Editar questão</a>
+              <div class="console-meta-group">
+                <span>{{ current_question.subject }}</span>
+                <span>{{ current_question.difficulty }}</span>
+                {% if current_question.error_reason %}
+                <span>{{ current_question.error_reason }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          {% if current_question.tags %}
+          <div class="console-chip-row review-question-tags review-review-tags">
+            {% for tag in current_question.tags %}
+            <span class="console-chip">{{ tag }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          {% if error_message %}
+          <div class="review-alert review-alert--error" role="alert">
+            {{ error_message }}
+          </div>
+          {% endif %}
+
+          <article class="review-card-body">
+            {% if current_question.statement %}
+            <div class="review-card-copy">
+              {{ current_question.statement }}
+            </div>
+            {% endif %}
+
+            {% if current_question.question_image_urls %}
+            <div class="review-image-gallery">
+              {% for image_url in current_question.question_image_urls %}
+              <div class="review-card-image-wrap">
+                <img class="review-card-image" src="{{ image_url }}" alt="Imagem da questão {{ loop.index }}" />
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if feedback %}
+            <div class="review-feedback-panel">
+              <p class="review-feedback-panel__message">{{ feedback.message }}</p>
+
+              {% if current_question.explanation or current_question.answer_image_url %}
+              <details class="review-resolution-panel" open>
+                <summary>Resolução</summary>
+                {% if current_question.explanation_html %}
+                <div class="review-markdown-content">{{ current_question.explanation_html|safe }}</div>
+                {% endif %}
+                {% if current_question.answer_image_url %}
+                <div class="review-card-image-wrap">
+                  <img class="review-card-image" src="{{ current_question.answer_image_url }}" alt="Imagem da resolução" />
+                </div>
+                {% endif %}
+              </details>
+              {% endif %}
+
+              <form method="post" action="{{ url_for('review_questions_review') }}" class="console-form review-finalize-form">
+                <input type="hidden" name="action" value="finalize" />
+                <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                <input type="hidden" name="result" value="{{ feedback.result }}" />
+                <input type="hidden" name="selected_option" value="{{ feedback.selected_option or '' }}" />
+                <input type="hidden" name="feedback_message" value="{{ feedback.message }}" />
+
+                <label for="difficulty_after">
+                  Como ficou essa questão agora?
+                </label>
+                <select id="difficulty_after" name="difficulty_after" required>
+                  <option value="">Selecione</option>
+                  {% for difficulty in review_difficulties %}
+                  <option value="{{ difficulty }}">{{ difficulty }}</option>
+                  {% endfor %}
+                </select>
+
+                <div class="review-form-actions">
+                  <button type="submit" class="console-button console-button--primary">Salvar e próxima</button>
+                </div>
+              </form>
+            </div>
+            {% else %}
+            <div class="review-answer-area">
+              {% if current_question.is_objective %}
+              <div class="review-answer-buttons">
+                {% for option in objective_options %}
+                <form method="post" action="{{ url_for('review_questions_review') }}">
+                  <input type="hidden" name="action" value="answer" />
+                  <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                  <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                  {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                  <input type="hidden" name="answer_action" value="{{ option }}" />
+                  <button type="submit" class="console-button review-answer-button">{{ option }}</button>
+                </form>
+                {% endfor %}
+                <form method="post" action="{{ url_for('review_questions_review') }}">
+                  <input type="hidden" name="action" value="answer" />
+                  <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                  <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                  {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                  <input type="hidden" name="answer_action" value="dont_know" />
+                  <button type="submit" class="console-button console-button--ghost review-answer-button">Não sei</button>
+                </form>
+              </div>
+              {% else %}
+              <div class="review-answer-buttons review-answer-buttons--discursive">
+                <form method="post" action="{{ url_for('review_questions_review') }}">
+                  <input type="hidden" name="action" value="answer" />
+                  <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                  <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                  {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                  <input type="hidden" name="answer_action" value="self_correct" />
+                  <button type="submit" class="console-button review-answer-button">Acertei</button>
+                </form>
+                <form method="post" action="{{ url_for('review_questions_review') }}">
+                  <input type="hidden" name="action" value="answer" />
+                  <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                  <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                  {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                  <input type="hidden" name="answer_action" value="self_wrong" />
+                  <button type="submit" class="console-button review-answer-button">Errei</button>
+                </form>
+                <form method="post" action="{{ url_for('review_questions_review') }}">
+                  <input type="hidden" name="action" value="answer" />
+                  <input type="hidden" name="question_id" value="{{ current_question.id }}" />
+                  <input type="hidden" name="deferred_ids" value="{{ deferred_ids }}" />
+                  {% if forced_question_id %}<input type="hidden" name="forced_question_id" value="{{ forced_question_id }}" />{% endif %}
+                  <input type="hidden" name="answer_action" value="dont_know" />
+                  <button type="submit" class="console-button console-button--ghost review-answer-button">Não sei</button>
+                </form>
+              </div>
+
+              {% if current_question.explanation or current_question.answer_image_url %}
+              <details class="review-resolution-panel">
+                <summary>Mostrar resolução</summary>
+                {% if current_question.explanation_html %}
+                <div class="review-markdown-content">{{ current_question.explanation_html|safe }}</div>
+                {% endif %}
+                {% if current_question.answer_image_url %}
+                <div class="review-card-image-wrap">
+                  <img class="review-card-image" src="{{ current_question.answer_image_url }}" alt="Imagem da resolução" />
+                </div>
+                {% endif %}
+              </details>
+              {% endif %}
+              {% endif %}
+            </div>
+            {% endif %}
+          </article>
+        </section>
+      </section>
+      {% else %}
+      <section class="console-panel console-panel--accent review-empty-panel">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Fila do dia</p>
+            <h2>Nada pendente hoje</h2>
+          </div>
+          <div class="console-meta-group">
+            <span>Parabéns discreto</span>
+          </div>
+        </div>
+
+        {% if error_message %}
+        <div class="review-alert review-alert--error" role="alert">
+          {{ error_message }}
+        </div>
+        {% endif %}
+
+        <p class="console-note">Não há questões ativas para revisar hoje.</p>
+
+        <div class="review-success-actions">
+          <a class="console-button console-button--primary" href="{{ url_for('review_questions_new') }}">Cadastrar questão</a>
+          <a class="console-button console-button--ghost" href="{{ url_for('review_questions_home') }}">Ver banco de questões</a>
+        </div>
+      </section>
+      {% endif %}
+{% endblock %}

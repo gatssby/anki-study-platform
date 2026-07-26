@@ -1,0 +1,67 @@
+{
+  "schema_version": "0.1",
+  "description": "Modelo inicial para recorrencia estruturada usada futuramente pela API.",
+  "items": [
+    {
+      "disciplina": "Matemática",
+      "fase": "UFPR 1ª fase",
+      "fonte": "recorrencia_manual_gpt_knowledge",
+      "tema": "Funções",
+      "peso_recorrencia": 0.92,
+      "subtemas": [
+        "função afim",
+        "função quadrática",
+        "função exponencial",
+        "interpretação de gráficos",
+        "domínio e imagem"
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "funcoes",
+        "graficos de funcoes",
+        "estudo de funcoes"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "UFPR 1ª fase",
+      "fonte": "recorrencia_manual_gpt_knowledge",
+      "tema": "Geografia física do Brasil",
+      "peso_recorrencia": 0.86,
+      "subtemas": [
+        "clima",
+        "relevo",
+        "hidrografia",
+        "domínios morfoclimáticos",
+        "impactos ambientais"
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "geografia fisica brasileira",
+        "dominios brasileiros",
+        "quadro natural do Brasil"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "UFPR 2ª fase",
+      "fonte": "recorrencia_manual_gpt_knowledge",
+      "tema": "Fisiologia humana",
+      "peso_recorrencia": 0.9,
+      "subtemas": [
+        "sistema digestório",
+        "sistema respiratório",
+        "sistema circulatório",
+        "sistema excretor",
+        "controle hormonal"
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "biologia segunda fase",
+        "fisiologia animal humana",
+        "corpo humano"
+      ]
+    }
+  ]
+}
+

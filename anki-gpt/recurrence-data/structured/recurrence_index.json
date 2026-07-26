@@ -1,0 +1,3368 @@
+{
+  "schema_version": "1.0",
+  "description": "Indice canonico de recorrencia estruturada construido a partir dos arquivos Markdown em recurrence-data/raw/.",
+  "normalization": {
+    "fase": [
+      "primeira_fase",
+      "segunda_fase"
+    ],
+    "peso_recorrencia": "percentual_do_tema_dividido_por_100",
+    "peso_percentual": "percentual_original_do_markdown",
+    "estrelas": "maior_contagem_de_estrelas_entre_os_subtemas_do_tema",
+    "subtemas.estrelas": "contagem_literal_de_estrelas_no_markdown"
+  },
+  "items": [
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Ecologia",
+      "peso_recorrencia": 0.179,
+      "peso_percentual": 17.9,
+      "subtemas": [
+        {
+          "nome": "Fluxo de energia",
+          "estrelas": 5
+        },
+        {
+          "nome": "Relações ecológicas",
+          "estrelas": 5
+        },
+        {
+          "nome": "Impactos ambientais",
+          "estrelas": 4
+        },
+        {
+          "nome": "Ciclos biogeoquímicos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Níveis de organização",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Evolução",
+      "peso_recorrencia": 0.095,
+      "peso_percentual": 9.5,
+      "subtemas": [
+        {
+          "nome": "Teoria sintética",
+          "estrelas": 5
+        },
+        {
+          "nome": "Tipos de seleção natural",
+          "estrelas": 4
+        },
+        {
+          "nome": "Evidências evolutivas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "evolucao"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Genética",
+      "peso_recorrencia": 0.089,
+      "peso_percentual": 8.9,
+      "subtemas": [
+        {
+          "nome": "Primeira Lei de Mendel",
+          "estrelas": 4
+        },
+        {
+          "nome": "Interações gênicas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Segunda Lei de Mendel",
+          "estrelas": 2
+        },
+        {
+          "nome": "Herança quantitativa",
+          "estrelas": 1
+        },
+        {
+          "nome": "Herança sexual",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "genetica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Biologia celular",
+      "peso_recorrencia": 0.088,
+      "peso_percentual": 8.8,
+      "subtemas": [
+        {
+          "nome": "Transporte de membrana",
+          "estrelas": 4
+        },
+        {
+          "nome": "Membrana plasmática",
+          "estrelas": 2
+        },
+        {
+          "nome": "Gametogênese",
+          "estrelas": 2
+        },
+        {
+          "nome": "Organelas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Divisão celular",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Saúde",
+      "peso_recorrencia": 0.083,
+      "peso_percentual": 8.3,
+      "subtemas": [
+        {
+          "nome": "Bacterioses",
+          "estrelas": 4
+        },
+        {
+          "nome": "Viroses",
+          "estrelas": 3
+        },
+        {
+          "nome": "Imunologia",
+          "estrelas": 3
+        },
+        {
+          "nome": "Protozooses",
+          "estrelas": 2
+        },
+        {
+          "nome": "Verminoses",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "saude"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Bioenergética",
+      "peso_recorrencia": 0.083,
+      "peso_percentual": 8.3,
+      "subtemas": [
+        {
+          "nome": "Fotossíntese",
+          "estrelas": 6
+        },
+        {
+          "nome": "Respiração celular",
+          "estrelas": 4
+        },
+        {
+          "nome": "Ponto de compensação",
+          "estrelas": 3
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "bioenergetica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Biologia molecular",
+      "peso_recorrencia": 0.065,
+      "peso_percentual": 6.5,
+      "subtemas": [
+        {
+          "nome": "Síntese proteica",
+          "estrelas": 5
+        },
+        {
+          "nome": "Transgenia",
+          "estrelas": 3
+        },
+        {
+          "nome": "Replicação",
+          "estrelas": 1
+        },
+        {
+          "nome": "Clonagem",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Botânica",
+      "peso_recorrencia": 0.06,
+      "peso_percentual": 6.0,
+      "subtemas": [
+        {
+          "nome": "Anatomia vegetal",
+          "estrelas": 2
+        },
+        {
+          "nome": "Sistemática de plantas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Condução de seiva",
+          "estrelas": 1
+        },
+        {
+          "nome": "Histologia vegetal",
+          "estrelas": 1
+        },
+        {
+          "nome": "Hormônios vegetais",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "botanica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Fisiologia comparada",
+      "peso_recorrencia": 0.051,
+      "peso_percentual": 5.1,
+      "subtemas": [
+        {
+          "nome": "Excreção comparada",
+          "estrelas": 2
+        },
+        {
+          "nome": "Respiração comparada",
+          "estrelas": 2
+        },
+        {
+          "nome": "Digestão comparada",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.05,
+      "peso_percentual": 5.0,
+      "subtemas": [
+        {
+          "nome": "Organogênese",
+          "estrelas": 1
+        },
+        {
+          "nome": "Anexos embrionários",
+          "estrelas": 1
+        },
+        {
+          "nome": "Fungos",
+          "estrelas": 1
+        },
+        {
+          "nome": "Bactérias",
+          "estrelas": 1
+        },
+        {
+          "nome": "Taxonomia",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Fisiologia humana",
+      "peso_recorrencia": 0.046,
+      "peso_percentual": 4.6,
+      "subtemas": [
+        {
+          "nome": "Sistema urinário",
+          "estrelas": 2
+        },
+        {
+          "nome": "Sistema digestório",
+          "estrelas": 1
+        },
+        {
+          "nome": "Sistema endócrino",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Bioquímica",
+      "peso_recorrencia": 0.039,
+      "peso_percentual": 3.9,
+      "subtemas": [
+        {
+          "nome": "Carboidratos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Lipídios",
+          "estrelas": 2
+        },
+        {
+          "nome": "Proteínas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Vitaminas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "bioquimica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Histologia animal",
+      "peso_recorrencia": 0.036,
+      "peso_percentual": 3.6,
+      "subtemas": [
+        {
+          "nome": "Tecido nervoso",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tecido muscular",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tecido conjuntivo",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "primeira_fase",
+      "fonte": "raw/biologia.md",
+      "tema": "Zoologia",
+      "peso_recorrencia": 0.035,
+      "peso_percentual": 3.5,
+      "subtemas": [
+        {
+          "nome": "Aves",
+          "estrelas": 4
+        },
+        {
+          "nome": "Invertebrados",
+          "estrelas": 2
+        },
+        {
+          "nome": "Mamíferos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Répteis",
+          "estrelas": 2
+        },
+        {
+          "nome": "Anfíbios",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Ecologia",
+      "peso_recorrencia": 0.182,
+      "peso_percentual": 18.2,
+      "subtemas": [
+        {
+          "nome": "Relações ecológicas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Ciclos biogeoquímicos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Conservação ambiental",
+          "estrelas": 2
+        },
+        {
+          "nome": "Impactos ambientais",
+          "estrelas": 2
+        },
+        {
+          "nome": "Fluxo de energia",
+          "estrelas": 1
+        },
+        {
+          "nome": "Níveis de organização do corpo",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Biologia molecular",
+      "peso_recorrencia": 0.166,
+      "peso_percentual": 16.6,
+      "subtemas": [
+        {
+          "nome": "Síntese proteica",
+          "estrelas": 4
+        },
+        {
+          "nome": "Expressão gênica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Ácidos nucleicos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Engenharia genética",
+          "estrelas": 1
+        },
+        {
+          "nome": "Transgenia",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "biologia segunda fase",
+        "genética molecular",
+        "DNA e RNA"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Saúde",
+      "peso_recorrencia": 0.121,
+      "peso_percentual": 12.1,
+      "subtemas": [
+        {
+          "nome": "Imunologia",
+          "estrelas": 3
+        },
+        {
+          "nome": "Viroses",
+          "estrelas": 3
+        },
+        {
+          "nome": "Protozooses",
+          "estrelas": 1
+        },
+        {
+          "nome": "Verminoses",
+          "estrelas": 1
+        },
+        {
+          "nome": "Epidemiologia",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "saude"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Genética",
+      "peso_recorrencia": 0.106,
+      "peso_percentual": 10.6,
+      "subtemas": [
+        {
+          "nome": "Primeira Lei de Mendel",
+          "estrelas": 4
+        },
+        {
+          "nome": "Segunda Lei de Mendel",
+          "estrelas": 4
+        },
+        {
+          "nome": "Herança sexual",
+          "estrelas": 1
+        },
+        {
+          "nome": "Genética de populações",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "genetica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Citogenética",
+      "peso_recorrencia": 0.077,
+      "peso_percentual": 7.7,
+      "subtemas": [
+        {
+          "nome": "Cromatina",
+          "estrelas": 2
+        },
+        {
+          "nome": "Divisão celular",
+          "estrelas": 2
+        },
+        {
+          "nome": "Determinação sexual",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "citogenetica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Evolução",
+      "peso_recorrencia": 0.066,
+      "peso_percentual": 6.6,
+      "subtemas": [
+        {
+          "nome": "Teoria sintética",
+          "estrelas": 3
+        },
+        {
+          "nome": "Tipos de seleção natural",
+          "estrelas": 2
+        },
+        {
+          "nome": "Especiação",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "evolucao"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Zoologia",
+      "peso_recorrencia": 0.059,
+      "peso_percentual": 5.9,
+      "subtemas": [
+        {
+          "nome": "Aves",
+          "estrelas": 1
+        },
+        {
+          "nome": "Invertebrados",
+          "estrelas": 1
+        },
+        {
+          "nome": "Características dos animais",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Botânica",
+      "peso_recorrencia": 0.057,
+      "peso_percentual": 5.7,
+      "subtemas": [
+        {
+          "nome": "Sistemática de plantas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Polinização e dispersão",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "botanica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Fisiologia comparada",
+      "peso_recorrencia": 0.053,
+      "peso_percentual": 5.3,
+      "subtemas": [
+        {
+          "nome": "Excreção comparada",
+          "estrelas": 2
+        },
+        {
+          "nome": "Circulação comparada",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Fisiologia humana",
+      "peso_recorrencia": 0.053,
+      "peso_percentual": 5.3,
+      "subtemas": [
+        {
+          "nome": "Sistema digestório",
+          "estrelas": 2
+        },
+        {
+          "nome": "Sistema endócrino",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "biologia segunda fase",
+        "fisiologia do corpo humano",
+        "corpo humano"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Bioenergética",
+      "peso_recorrencia": 0.029,
+      "peso_percentual": 2.9,
+      "subtemas": [
+        {
+          "nome": "Fotossíntese",
+          "estrelas": 3
+        },
+        {
+          "nome": "Respiração celular",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "bioenergetica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Bioquímica",
+      "peso_recorrencia": 0.029,
+      "peso_percentual": 2.9,
+      "subtemas": [
+        {
+          "nome": "Proteínas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Carboidratos",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "bioquimica"
+      ]
+    },
+    {
+      "disciplina": "Biologia",
+      "fase": "segunda_fase",
+      "fonte": "raw/biologia_segunda_fase.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.046,
+      "peso_percentual": 4.6,
+      "subtemas": [
+        {
+          "nome": "Fungos",
+          "estrelas": 1
+        },
+        {
+          "nome": "Organelas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Tecido epitelial",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Dinâmica",
+      "peso_recorrencia": 0.187,
+      "peso_percentual": 18.7,
+      "subtemas": [
+        {
+          "nome": "Leis de Newton",
+          "estrelas": 8
+        },
+        {
+          "nome": "Estudo das forças",
+          "estrelas": 6
+        },
+        {
+          "nome": "Plano inclinado",
+          "estrelas": 3
+        },
+        {
+          "nome": "Equilíbrio de corpos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Trabalho e energia mecânica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Quantidade de movimento",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 8,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "dinamica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Cinemática",
+      "peso_recorrencia": 0.165,
+      "peso_percentual": 16.5,
+      "subtemas": [
+        {
+          "nome": "MRU",
+          "estrelas": 6
+        },
+        {
+          "nome": "MRUV",
+          "estrelas": 6
+        },
+        {
+          "nome": "Queda livre",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "cinematica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Eletrodinâmica",
+      "peso_recorrencia": 0.125,
+      "peso_percentual": 12.5,
+      "subtemas": [
+        {
+          "nome": "Potência elétrica",
+          "estrelas": 6
+        },
+        {
+          "nome": "Leis de Ohm",
+          "estrelas": 4
+        },
+        {
+          "nome": "Circuitos elétricos",
+          "estrelas": 4
+        },
+        {
+          "nome": "Capacitores",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "eletrodinamica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Gases",
+      "peso_recorrencia": 0.114,
+      "peso_percentual": 11.4,
+      "subtemas": [
+        {
+          "nome": "Transformação gasosa",
+          "estrelas": 6
+        },
+        {
+          "nome": "Conceito de gases",
+          "estrelas": 2
+        },
+        {
+          "nome": "Trabalho de um gás",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Ondulatória",
+      "peso_recorrencia": 0.102,
+      "peso_percentual": 10.2,
+      "subtemas": [
+        {
+          "nome": "Introdução à ondulatória",
+          "estrelas": 6
+        },
+        {
+          "nome": "Instrumentos musicais",
+          "estrelas": 1
+        },
+        {
+          "nome": "Acústica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "ondulatoria"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Conceitos iniciais",
+      "peso_recorrencia": 0.097,
+      "peso_percentual": 9.7,
+      "subtemas": [
+        {
+          "nome": "Unidades de medida",
+          "estrelas": 6
+        },
+        {
+          "nome": "Análise dimensional e conversão de unidades",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Hidrostática",
+      "peso_recorrencia": 0.085,
+      "peso_percentual": 8.5,
+      "subtemas": [
+        {
+          "nome": "Princípios da hidrostática",
+          "estrelas": 4
+        },
+        {
+          "nome": "Pressão",
+          "estrelas": 3
+        },
+        {
+          "nome": "Grandezas da hidrostática",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "hidrostatica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Calorimetria",
+      "peso_recorrencia": 0.046,
+      "peso_percentual": 4.6,
+      "subtemas": [
+        {
+          "nome": "Calor sensível",
+          "estrelas": 3
+        },
+        {
+          "nome": "Dilatações",
+          "estrelas": 2
+        },
+        {
+          "nome": "Estados físicos",
+          "estrelas": 1
+        },
+        {
+          "nome": "Escalas termométricas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Óptica",
+      "peso_recorrencia": 0.046,
+      "peso_percentual": 4.6,
+      "subtemas": [
+        {
+          "nome": "Lentes esféricas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Refração da luz",
+          "estrelas": 3
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "optica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Eletrostática",
+      "peso_recorrencia": 0.022,
+      "peso_percentual": 2.2,
+      "subtemas": [
+        {
+          "nome": "Força elétrica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Campo elétrico",
+          "estrelas": 2
+        },
+        {
+          "nome": "Energia potencial elétrica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "eletrostatica"
+      ]
+    },
+    {
+      "disciplina": "Física",
+      "fase": "primeira_fase",
+      "fonte": "raw/fisica.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.012,
+      "peso_percentual": 1.2,
+      "subtemas": [
+        {
+          "nome": "Força magnética",
+          "estrelas": 3
+        },
+        {
+          "nome": "Efeito fotoelétrico",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Urbana",
+      "peso_recorrencia": 0.142,
+      "peso_percentual": 14.2,
+      "subtemas": [
+        {
+          "nome": "Hierarquia urbana",
+          "estrelas": 4
+        },
+        {
+          "nome": "Problemas socioambientais urbanos",
+          "estrelas": 4
+        },
+        {
+          "nome": "Metrópoles",
+          "estrelas": 3
+        },
+        {
+          "nome": "Rede urbana brasileira",
+          "estrelas": 3
+        },
+        {
+          "nome": "Processo de urbanização",
+          "estrelas": 2
+        },
+        {
+          "nome": "Planejamento urbano",
+          "estrelas": 1
+        },
+        {
+          "nome": "Urbanização brasileira",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "geografia urbana",
+        "urbanização"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Cartografia",
+      "peso_recorrencia": 0.107,
+      "peso_percentual": 10.7,
+      "subtemas": [
+        {
+          "nome": "Geotecnologias",
+          "estrelas": 2
+        },
+        {
+          "nome": "Mapas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Projeções cartográficas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Coordenadas geográficas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Curvas de nível",
+          "estrelas": 1
+        },
+        {
+          "nome": "Escala",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Regionalização do Brasil",
+      "peso_recorrencia": 0.092,
+      "peso_percentual": 9.2,
+      "subtemas": [
+        {
+          "nome": "Planejamento regional",
+          "estrelas": 6
+        },
+        {
+          "nome": "Economia regional",
+          "estrelas": 5
+        },
+        {
+          "nome": "Ciclos econômicos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Formação territorial do Brasil",
+          "estrelas": 2
+        },
+        {
+          "nome": "Ocupação da Amazônia",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tipos de regionalização",
+          "estrelas": 2
+        },
+        {
+          "nome": "Organização política do Brasil",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "regioes do Brasil",
+        "planejamento regional",
+        "regionalizacao do brasil"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Geopolítica",
+      "peso_recorrencia": 0.092,
+      "peso_percentual": 9.2,
+      "subtemas": [
+        {
+          "nome": "Conflitos regionais",
+          "estrelas": 3
+        },
+        {
+          "nome": "Fronteiras",
+          "estrelas": 3
+        },
+        {
+          "nome": "Guerra Fria",
+          "estrelas": 3
+        },
+        {
+          "nome": "Conceitos básicos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Nova ordem mundial",
+          "estrelas": 1
+        },
+        {
+          "nome": "Segunda Guerra Mundial",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "geopolitica"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Demografia",
+      "peso_recorrencia": 0.08,
+      "peso_percentual": 8.0,
+      "subtemas": [
+        {
+          "nome": "Conceitos demográficos",
+          "estrelas": 4
+        },
+        {
+          "nome": "Migrações internacionais",
+          "estrelas": 4
+        },
+        {
+          "nome": "Políticas demográficas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Distribuição de renda",
+          "estrelas": 1
+        },
+        {
+          "nome": "IDH",
+          "estrelas": 1
+        },
+        {
+          "nome": "Teorias demográficas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Rural",
+      "peso_recorrencia": 0.068,
+      "peso_percentual": 6.8,
+      "subtemas": [
+        {
+          "nome": "Agronegócio brasileiro",
+          "estrelas": 4
+        },
+        {
+          "nome": "Agropecuária mundial",
+          "estrelas": 3
+        },
+        {
+          "nome": "Revolução Verde",
+          "estrelas": 3
+        },
+        {
+          "nome": "Agroecologia",
+          "estrelas": 1
+        },
+        {
+          "nome": "Estrutura fundiária brasileira",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Indústria e energia",
+      "peso_recorrencia": 0.061,
+      "peso_percentual": 6.1,
+      "subtemas": [
+        {
+          "nome": "Industrialização brasileira",
+          "estrelas": 5
+        },
+        {
+          "nome": "Revoluções industriais",
+          "estrelas": 2
+        },
+        {
+          "nome": "Energia nuclear",
+          "estrelas": 1
+        },
+        {
+          "nome": "Industrialização na América Latina",
+          "estrelas": 1
+        },
+        {
+          "nome": "Industrialização na China",
+          "estrelas": 1
+        },
+        {
+          "nome": "Industrialização nos EUA",
+          "estrelas": 1
+        },
+        {
+          "nome": "Matriz energética mundial",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "industria e energia"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Problemas ambientais",
+      "peso_recorrencia": 0.057,
+      "peso_percentual": 5.7,
+      "subtemas": [
+        {
+          "nome": "Convenções ambientais",
+          "estrelas": 4
+        },
+        {
+          "nome": "Legislação ambiental",
+          "estrelas": 4
+        },
+        {
+          "nome": "Aquecimento global",
+          "estrelas": 2
+        },
+        {
+          "nome": "Desmatamento",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "População brasileira",
+      "peso_recorrencia": 0.057,
+      "peso_percentual": 5.7,
+      "subtemas": [
+        {
+          "nome": "Migrações no Brasil",
+          "estrelas": 3
+        },
+        {
+          "nome": "Características da população brasileira",
+          "estrelas": 2
+        },
+        {
+          "nome": "Diversidade religiosa",
+          "estrelas": 1
+        },
+        {
+          "nome": "Questões de gênero",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "populacao brasileira"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.05,
+      "peso_percentual": 5.0,
+      "subtemas": [
+        {
+          "nome": "Geografia da saúde",
+          "estrelas": 3
+        },
+        {
+          "nome": "Lugar",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Economia e atualidades",
+      "peso_recorrencia": 0.049,
+      "peso_percentual": 4.9,
+      "subtemas": [
+        {
+          "nome": "Blocos econômicos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Muro de Trump",
+          "estrelas": 3
+        },
+        {
+          "nome": "Globalização",
+          "estrelas": 2
+        },
+        {
+          "nome": "Acordo de Paris",
+          "estrelas": 1
+        },
+        {
+          "nome": "Balança comercial brasileira",
+          "estrelas": 1
+        },
+        {
+          "nome": "Crise de 2008",
+          "estrelas": 1
+        },
+        {
+          "nome": "Fases do capitalismo",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Hidrologia",
+      "peso_recorrencia": 0.048,
+      "peso_percentual": 4.8,
+      "subtemas": [
+        {
+          "nome": "Ciclo da água",
+          "estrelas": 3
+        },
+        {
+          "nome": "Bacias hidrográficas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Consumo de água",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Geografia mundial",
+      "peso_recorrencia": 0.045,
+      "peso_percentual": 4.5,
+      "subtemas": [
+        {
+          "nome": "Ásia",
+          "estrelas": 2
+        },
+        {
+          "nome": "África",
+          "estrelas": 1
+        },
+        {
+          "nome": "América Central",
+          "estrelas": 1
+        },
+        {
+          "nome": "América do Norte",
+          "estrelas": 1
+        },
+        {
+          "nome": "Ártico",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Geomorfologia",
+      "peso_recorrencia": 0.028,
+      "peso_percentual": 2.8,
+      "subtemas": [
+        {
+          "nome": "Agentes do relevo",
+          "estrelas": 1
+        },
+        {
+          "nome": "Relevo do Paraná",
+          "estrelas": 1
+        },
+        {
+          "nome": "Solos",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Geografia",
+      "fase": "primeira_fase",
+      "fonte": "raw/geografia.md",
+      "tema": "Biomas",
+      "peso_recorrencia": 0.024,
+      "peso_percentual": 2.4,
+      "subtemas": [
+        {
+          "nome": "Cerrado",
+          "estrelas": 3
+        },
+        {
+          "nome": "Amazônia",
+          "estrelas": 2
+        },
+        {
+          "nome": "Biomas mundiais",
+          "estrelas": 1
+        },
+        {
+          "nome": "Mata Atlântica",
+          "estrelas": 1
+        },
+        {
+          "nome": "Vegetação do Paraná",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Idade Contemporânea (séc. XX)",
+      "peso_recorrencia": 0.148,
+      "peso_percentual": 14.8,
+      "subtemas": [
+        {
+          "nome": "Movimentos sociais",
+          "estrelas": 5
+        },
+        {
+          "nome": "Descolonização afro-asiática",
+          "estrelas": 4
+        },
+        {
+          "nome": "Guerra Fria",
+          "estrelas": 2
+        },
+        {
+          "nome": "Primeira Guerra Mundial",
+          "estrelas": 2
+        },
+        {
+          "nome": "Revolução Russa",
+          "estrelas": 2
+        },
+        {
+          "nome": "Segunda Guerra Mundial",
+          "estrelas": 2
+        },
+        {
+          "nome": "Ditaduras na América Latina",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "idade contemporanea sec xx"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Idade Contemporânea (séc. XIX)",
+      "peso_recorrencia": 0.134,
+      "peso_percentual": 13.4,
+      "subtemas": [
+        {
+          "nome": "Independência das Américas",
+          "estrelas": 4
+        },
+        {
+          "nome": "EUA no séc. XIX",
+          "estrelas": 3
+        },
+        {
+          "nome": "Imperialismo",
+          "estrelas": 2
+        },
+        {
+          "nome": "Revolução Industrial",
+          "estrelas": 2
+        },
+        {
+          "nome": "Revoluções liberais",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "idade contemporanea sec xix"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Efemérides",
+      "peso_recorrencia": 0.109,
+      "peso_percentual": 10.9,
+      "subtemas": [
+        {
+          "nome": "100 anos",
+          "estrelas": 4
+        },
+        {
+          "nome": "50 anos",
+          "estrelas": 3
+        },
+        {
+          "nome": "30 anos",
+          "estrelas": 3
+        },
+        {
+          "nome": "200 anos",
+          "estrelas": 1
+        },
+        {
+          "nome": "150 anos",
+          "estrelas": 1
+        },
+        {
+          "nome": "70 anos",
+          "estrelas": 1
+        },
+        {
+          "nome": "60 anos",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "efemerides"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Brasil República",
+      "peso_recorrencia": 0.109,
+      "peso_percentual": 10.9,
+      "subtemas": [
+        {
+          "nome": "Ditadura militar",
+          "estrelas": 5
+        },
+        {
+          "nome": "República Velha",
+          "estrelas": 4
+        },
+        {
+          "nome": "Era Vargas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Nova República",
+          "estrelas": 3
+        },
+        {
+          "nome": "República populista",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "brasil republica"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Idade Média",
+      "peso_recorrencia": 0.107,
+      "peso_percentual": 10.7,
+      "subtemas": [
+        {
+          "nome": "Alta Idade Média",
+          "estrelas": 3
+        },
+        {
+          "nome": "Baixa Idade Média",
+          "estrelas": 3
+        },
+        {
+          "nome": "Civilização árabe",
+          "estrelas": 3
+        },
+        {
+          "nome": "Império Bizantino",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "idade media"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Idade Moderna",
+      "peso_recorrencia": 0.107,
+      "peso_percentual": 10.7,
+      "subtemas": [
+        {
+          "nome": "Expansão marítima",
+          "estrelas": 2
+        },
+        {
+          "nome": "Renascimento",
+          "estrelas": 2
+        },
+        {
+          "nome": "Revolução Francesa",
+          "estrelas": 2
+        },
+        {
+          "nome": "Absolutismo",
+          "estrelas": 1
+        },
+        {
+          "nome": "Iluminismo",
+          "estrelas": 1
+        },
+        {
+          "nome": "Inquisição",
+          "estrelas": 1
+        },
+        {
+          "nome": "Reforma Protestante",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Antiguidade",
+      "peso_recorrencia": 0.095,
+      "peso_percentual": 9.5,
+      "subtemas": [
+        {
+          "nome": "Roma",
+          "estrelas": 4
+        },
+        {
+          "nome": "Grécia",
+          "estrelas": 3
+        },
+        {
+          "nome": "Egito",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Brasil Colônia",
+      "peso_recorrencia": 0.092,
+      "peso_percentual": 9.2,
+      "subtemas": [
+        {
+          "nome": "Escravidão",
+          "estrelas": 3
+        },
+        {
+          "nome": "Movimentos de resistência",
+          "estrelas": 3
+        },
+        {
+          "nome": "Crise do sistema colonial",
+          "estrelas": 2
+        },
+        {
+          "nome": "Economia colonial",
+          "estrelas": 2
+        },
+        {
+          "nome": "Missões jesuíticas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "brasil colonia"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Brasil Império",
+      "peso_recorrencia": 0.042,
+      "peso_percentual": 4.2,
+      "subtemas": [
+        {
+          "nome": "Segundo Reinado",
+          "estrelas": 3
+        },
+        {
+          "nome": "Primeiro Reinado",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "brasil imperio"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Atualidades",
+      "peso_recorrencia": 0.039,
+      "peso_percentual": 3.9,
+      "subtemas": [
+        {
+          "nome": "Sem detalhamento específico no material",
+          "estrelas": 0
+        }
+      ],
+      "estrelas": 0,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "História",
+      "fase": "primeira_fase",
+      "fonte": "raw/historia.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.018,
+      "peso_percentual": 1.8,
+      "subtemas": [
+        {
+          "nome": "Patrimônio histórico",
+          "estrelas": 1
+        },
+        {
+          "nome": "Revolução Verde",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Funções",
+      "peso_recorrencia": 0.286,
+      "peso_percentual": 28.6,
+      "subtemas": [
+        {
+          "nome": "Função afim",
+          "estrelas": 9
+        },
+        {
+          "nome": "Função exponencial e logaritmos",
+          "estrelas": 7
+        },
+        {
+          "nome": "Função quadrática",
+          "estrelas": 6
+        },
+        {
+          "nome": "Função composta e P.G.",
+          "estrelas": 3
+        },
+        {
+          "nome": "Definição de função e função trigonométrica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Função radical, módulos e P.A.",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 9,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "funcoes",
+        "funções matemáticas",
+        "gráficos de funções"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Geometria plana",
+      "peso_recorrencia": 0.164,
+      "peso_percentual": 16.4,
+      "subtemas": [
+        {
+          "nome": "Semelhança de triângulos",
+          "estrelas": 8
+        },
+        {
+          "nome": "Área de triângulos",
+          "estrelas": 7
+        },
+        {
+          "nome": "Círculo",
+          "estrelas": 6
+        },
+        {
+          "nome": "Quadriláteros",
+          "estrelas": 4
+        },
+        {
+          "nome": "Polígonos",
+          "estrelas": 3
+        },
+        {
+          "nome": "Trigonometria",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 8,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Combinatória e probabilidade",
+      "peso_recorrencia": 0.099,
+      "peso_percentual": 9.9,
+      "subtemas": [
+        {
+          "nome": "Contagem",
+          "estrelas": 6
+        },
+        {
+          "nome": "Probabilidade",
+          "estrelas": 5
+        },
+        {
+          "nome": "Permutação",
+          "estrelas": 3
+        },
+        {
+          "nome": "Combinação",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "contagem",
+        "probabilidade",
+        "analise combinatoria",
+        "combinatoria e probabilidade"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Geometria analítica",
+      "peso_recorrencia": 0.07,
+      "peso_percentual": 7.0,
+      "subtemas": [
+        {
+          "nome": "Estudo da reta",
+          "estrelas": 5
+        },
+        {
+          "nome": "Circunferência",
+          "estrelas": 2
+        },
+        {
+          "nome": "Estudo do ponto",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "geometria analitica"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Geometria espacial",
+      "peso_recorrencia": 0.07,
+      "peso_percentual": 7.0,
+      "subtemas": [
+        {
+          "nome": "Prismas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Poliedros",
+          "estrelas": 2
+        },
+        {
+          "nome": "Pirâmides",
+          "estrelas": 2
+        },
+        {
+          "nome": "Cones",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Matemática básica",
+      "peso_recorrencia": 0.07,
+      "peso_percentual": 7.0,
+      "subtemas": [
+        {
+          "nome": "Conversão de unidades",
+          "estrelas": 4
+        },
+        {
+          "nome": "Operações básicas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Operações entre frações",
+          "estrelas": 1
+        },
+        {
+          "nome": "Múltiplos e divisores",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "matematica basica"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Proporção",
+      "peso_recorrencia": 0.061,
+      "peso_percentual": 6.1,
+      "subtemas": [
+        {
+          "nome": "Diretamente proporcional",
+          "estrelas": 3
+        },
+        {
+          "nome": "Porcentagem",
+          "estrelas": 3
+        },
+        {
+          "nome": "Inversamente proporcional",
+          "estrelas": 1
+        },
+        {
+          "nome": "Densidade populacional",
+          "estrelas": 1
+        },
+        {
+          "nome": "Velocidade média",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "proporcao"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Equações e inequações",
+      "peso_recorrencia": 0.049,
+      "peso_percentual": 4.9,
+      "subtemas": [
+        {
+          "nome": "Sistema de equações",
+          "estrelas": 3
+        },
+        {
+          "nome": "Equação do 2º grau",
+          "estrelas": 2
+        },
+        {
+          "nome": "Inequação",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "equacoes e inequacoes"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Identidades trigonométricas",
+      "peso_recorrencia": 0.047,
+      "peso_percentual": 4.7,
+      "subtemas": [
+        {
+          "nome": "Relação fundamental",
+          "estrelas": 5
+        },
+        {
+          "nome": "Arco duplo",
+          "estrelas": 3
+        },
+        {
+          "nome": "Razões trigonométricas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Soma de arco",
+          "estrelas": 2
+        },
+        {
+          "nome": "Equação trigonométrica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "identidades trigonometricas"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.042,
+      "peso_percentual": 4.2,
+      "subtemas": [
+        {
+          "nome": "Análise de gráficos",
+          "estrelas": 1
+        },
+        {
+          "nome": "Média e mediana",
+          "estrelas": 1
+        },
+        {
+          "nome": "Determinantes",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Polinômio",
+      "peso_recorrencia": 0.023,
+      "peso_percentual": 2.3,
+      "subtemas": [
+        {
+          "nome": "Raízes de polinômios",
+          "estrelas": 2
+        },
+        {
+          "nome": "Equação polinomial",
+          "estrelas": 1
+        },
+        {
+          "nome": "Fatoração polinomial",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "polinomio"
+      ]
+    },
+    {
+      "disciplina": "Matemática",
+      "fase": "primeira_fase",
+      "fonte": "raw/matematica.md",
+      "tema": "Números complexos",
+      "peso_recorrencia": 0.019,
+      "peso_percentual": 1.9,
+      "subtemas": [
+        {
+          "nome": "Operação",
+          "estrelas": 2
+        },
+        {
+          "nome": "Forma algébrica",
+          "estrelas": 1
+        },
+        {
+          "nome": "Forma polar",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "numeros complexos"
+      ]
+    },
+    {
+      "disciplina": "Português",
+      "fase": "primeira_fase",
+      "fonte": "raw/portugues.md",
+      "tema": "Interpretação",
+      "peso_recorrencia": 0.482,
+      "peso_percentual": 48.2,
+      "subtemas": [
+        {
+          "nome": "Identificação de ideias do texto",
+          "estrelas": 5
+        },
+        {
+          "nome": "Identificação de tese do texto",
+          "estrelas": 2
+        },
+        {
+          "nome": "Referenciais",
+          "estrelas": 2
+        },
+        {
+          "nome": "Identificação de argumento",
+          "estrelas": 2
+        },
+        {
+          "nome": "Outros",
+          "estrelas": 1
+        },
+        {
+          "nome": "Identificação de marcas linguísticas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "interpretacao"
+      ]
+    },
+    {
+      "disciplina": "Português",
+      "fase": "primeira_fase",
+      "fonte": "raw/portugues.md",
+      "tema": "Semântica",
+      "peso_recorrencia": 0.343,
+      "peso_percentual": 34.3,
+      "subtemas": [
+        {
+          "nome": "Efeitos de sentido em texto",
+          "estrelas": 3
+        },
+        {
+          "nome": "Significação",
+          "estrelas": 2
+        },
+        {
+          "nome": "Recursos coesivos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Operações textuais",
+          "estrelas": 2
+        },
+        {
+          "nome": "Figuras de linguagem",
+          "estrelas": 2
+        },
+        {
+          "nome": "Outros",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "semantica"
+      ]
+    },
+    {
+      "disciplina": "Português",
+      "fase": "primeira_fase",
+      "fonte": "raw/portugues.md",
+      "tema": "Gramática",
+      "peso_recorrencia": 0.175,
+      "peso_percentual": 17.5,
+      "subtemas": [
+        {
+          "nome": "Pontuação",
+          "estrelas": 3
+        },
+        {
+          "nome": "Classes de palavras",
+          "estrelas": 2
+        },
+        {
+          "nome": "Concordância e regência",
+          "estrelas": 2
+        },
+        {
+          "nome": "Orações coordenadas e subordinadas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Uso do “que” e “se”",
+          "estrelas": 1
+        },
+        {
+          "nome": "Termos da oração",
+          "estrelas": 1
+        },
+        {
+          "nome": "Outros",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "gramatica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Estequiometria",
+      "peso_recorrencia": 0.141,
+      "peso_percentual": 14.1,
+      "subtemas": [
+        {
+          "nome": "Relações de massa",
+          "estrelas": 4
+        },
+        {
+          "nome": "Balanceamento",
+          "estrelas": 3
+        },
+        {
+          "nome": "Reagente limitante",
+          "estrelas": 3
+        },
+        {
+          "nome": "Fórmulas químicas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Pureza",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Funções orgânicas",
+      "peso_recorrencia": 0.141,
+      "peso_percentual": 14.1,
+      "subtemas": [
+        {
+          "nome": "Álcoois, ésteres e ácidos carboxílicos",
+          "estrelas": 4
+        },
+        {
+          "nome": "Funções nitrogenadas",
+          "estrelas": 4
+        },
+        {
+          "nome": "Hidrocarbonetos, éteres e cetonas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Fenol",
+          "estrelas": 2
+        },
+        {
+          "nome": "Aldeídos e cadeias carbônicas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 4,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "funcoes organicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Ligações químicas",
+      "peso_recorrencia": 0.131,
+      "peso_percentual": 13.1,
+      "subtemas": [
+        {
+          "nome": "Ligação iônica",
+          "estrelas": 5
+        },
+        {
+          "nome": "Ligação covalente e forças intermoleculares",
+          "estrelas": 4
+        },
+        {
+          "nome": "Ligação metálica, solubilidade e NOX",
+          "estrelas": 2
+        },
+        {
+          "nome": "Polaridade de ligação e geometria molecular",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "ligacoes quimicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Funções inorgânicas",
+      "peso_recorrencia": 0.101,
+      "peso_percentual": 10.1,
+      "subtemas": [
+        {
+          "nome": "Sais",
+          "estrelas": 5
+        },
+        {
+          "nome": "Reações inorgânicas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Óxidos",
+          "estrelas": 2
+        },
+        {
+          "nome": "Bases",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "funcoes inorganicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Organização da matéria",
+      "peso_recorrencia": 0.081,
+      "peso_percentual": 8.1,
+      "subtemas": [
+        {
+          "nome": "Distribuição eletrônica",
+          "estrelas": 3
+        },
+        {
+          "nome": "Propriedades periódicas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Separação de misturas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Organização da tabela periódica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tipos de misturas e carga formal",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "organizacao da materia"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Eletroquímica",
+      "peso_recorrencia": 0.071,
+      "peso_percentual": 7.1,
+      "subtemas": [
+        {
+          "nome": "Conceitos de pilhas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Cálculo de pilhas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Agente oxidante/redutor",
+          "estrelas": 1
+        },
+        {
+          "nome": "Energia de Gibbs",
+          "estrelas": 1
+        },
+        {
+          "nome": "Conceitos de eletrólise",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "eletroquimica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Isomeria",
+      "peso_recorrencia": 0.071,
+      "peso_percentual": 7.1,
+      "subtemas": [
+        {
+          "nome": "Isomeria óptica",
+          "estrelas": 6
+        },
+        {
+          "nome": "Isomeria plana",
+          "estrelas": 5
+        },
+        {
+          "nome": "Isomeria geométrica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 6,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Reações orgânicas",
+      "peso_recorrencia": 0.051,
+      "peso_percentual": 5.1,
+      "subtemas": [
+        {
+          "nome": "Reação de adição",
+          "estrelas": 3
+        },
+        {
+          "nome": "Reação de oxidação",
+          "estrelas": 1
+        },
+        {
+          "nome": "Reação de substituição",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "reacoes organicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Soluções",
+      "peso_recorrencia": 0.051,
+      "peso_percentual": 5.1,
+      "subtemas": [
+        {
+          "nome": "Cálculo de concentração",
+          "estrelas": 2
+        },
+        {
+          "nome": "Propriedades coligativas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Coloides",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "solucoes"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Equilíbrio químico",
+      "peso_recorrencia": 0.045,
+      "peso_percentual": 4.5,
+      "subtemas": [
+        {
+          "nome": "pH",
+          "estrelas": 5
+        },
+        {
+          "nome": "Princípio de Le Chatelier",
+          "estrelas": 2
+        },
+        {
+          "nome": "Hidrólise",
+          "estrelas": 2
+        },
+        {
+          "nome": "Kps",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "equilibrio quimico"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Polímeros e bioquímica",
+      "peso_recorrencia": 0.04,
+      "peso_percentual": 4.0,
+      "subtemas": [
+        {
+          "nome": "Bioquímica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Polímeros",
+          "estrelas": 2
+        },
+        {
+          "nome": "Reação de polimerização",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "polimeros e bioquimica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Radioatividade",
+      "peso_recorrencia": 0.03,
+      "peso_percentual": 3.0,
+      "subtemas": [
+        {
+          "nome": "Séries radioativas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tempo de meia-vida",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Cinética química",
+      "peso_recorrencia": 0.025,
+      "peso_percentual": 2.5,
+      "subtemas": [
+        {
+          "nome": "Catalisadores",
+          "estrelas": 2
+        },
+        {
+          "nome": "Gráficos",
+          "estrelas": 1
+        },
+        {
+          "nome": "Teoria das reações",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "1ª fase",
+        "primeira fase",
+        "cinetica quimica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "primeira_fase",
+      "fonte": "raw/quimica.md",
+      "tema": "Outros",
+      "peso_recorrencia": 0.02,
+      "peso_percentual": 2.0,
+      "subtemas": [
+        {
+          "nome": "Pressão parcial",
+          "estrelas": 1
+        },
+        {
+          "nome": "Lei de Hess",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "1ª fase",
+        "primeira fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Estequiometria",
+      "peso_recorrencia": 0.209,
+      "peso_percentual": 20.9,
+      "subtemas": [
+        {
+          "nome": "Relações de massas",
+          "estrelas": 5
+        },
+        {
+          "nome": "Fórmulas químicas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Balanceamento",
+          "estrelas": 2
+        },
+        {
+          "nome": "Pureza/rendimento",
+          "estrelas": 2
+        },
+        {
+          "nome": "Cálculo de gases",
+          "estrelas": 2
+        },
+        {
+          "nome": "Leis ponderais",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Funções orgânicas",
+      "peso_recorrencia": 0.191,
+      "peso_percentual": 19.1,
+      "subtemas": [
+        {
+          "nome": "Identificação de compostos orgânicos",
+          "estrelas": 5
+        },
+        {
+          "nome": "Representação de compostos",
+          "estrelas": 5
+        },
+        {
+          "nome": "Nomenclatura de compostos orgânicos",
+          "estrelas": 4
+        },
+        {
+          "nome": "Classificação de compostos oxigenados",
+          "estrelas": 3
+        },
+        {
+          "nome": "Caracterização de compostos nitrogenados",
+          "estrelas": 3
+        },
+        {
+          "nome": "Cadeias carbônicas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Nomenclatura de compostos halogenados",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "quimica segunda fase",
+        "química orgânica",
+        "compostos orgânicos",
+        "funcoes organicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Ligações químicas",
+      "peso_recorrencia": 0.082,
+      "peso_percentual": 8.2,
+      "subtemas": [
+        {
+          "nome": "Geometria molecular",
+          "estrelas": 2
+        },
+        {
+          "nome": "Forças intermoleculares",
+          "estrelas": 2
+        },
+        {
+          "nome": "NOX",
+          "estrelas": 2
+        },
+        {
+          "nome": "Constante de equilíbrio",
+          "estrelas": 2
+        },
+        {
+          "nome": "Solubilidade",
+          "estrelas": 2
+        },
+        {
+          "nome": "Polaridade de ligação",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "ligacoes quimicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Organização da matéria",
+      "peso_recorrencia": 0.08,
+      "peso_percentual": 8.0,
+      "subtemas": [
+        {
+          "nome": "Separação de misturas",
+          "estrelas": 3
+        },
+        {
+          "nome": "Distribuição eletrônica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Tipos de misturas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Organização da tabela periódica",
+          "estrelas": 2
+        },
+        {
+          "nome": "Propriedades periódicas",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "organizacao da materia"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Equilíbrio químico",
+      "peso_recorrencia": 0.08,
+      "peso_percentual": 8.0,
+      "subtemas": [
+        {
+          "nome": "Constante de equilíbrio",
+          "estrelas": 2
+        },
+        {
+          "nome": "pH",
+          "estrelas": 2
+        },
+        {
+          "nome": "Princípio de Le Chatelier",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "equilibrio quimico"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Termoquímica",
+      "peso_recorrencia": 0.078,
+      "peso_percentual": 7.8,
+      "subtemas": [
+        {
+          "nome": "Cálculos de termoquímica",
+          "estrelas": 5
+        },
+        {
+          "nome": "Leis de Hess",
+          "estrelas": 2
+        }
+      ],
+      "estrelas": 5,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "termoquimica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Reações orgânicas",
+      "peso_recorrencia": 0.073,
+      "peso_percentual": 7.3,
+      "subtemas": [
+        {
+          "nome": "Reação de substituição",
+          "estrelas": 3
+        },
+        {
+          "nome": "Reação de adição",
+          "estrelas": 2
+        },
+        {
+          "nome": "Reação de eliminação",
+          "estrelas": 1
+        },
+        {
+          "nome": "Reação de oxidação",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "reacoes organicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Eletroquímica",
+      "peso_recorrencia": 0.054,
+      "peso_percentual": 5.4,
+      "subtemas": [
+        {
+          "nome": "Cálculo de pilhas",
+          "estrelas": 2
+        },
+        {
+          "nome": "Conceito de pilhas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Balanceamento redox",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "eletroquimica"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Isomeria",
+      "peso_recorrencia": 0.054,
+      "peso_percentual": 5.4,
+      "subtemas": [
+        {
+          "nome": "Isomeria plana",
+          "estrelas": 3
+        },
+        {
+          "nome": "Isomeria geométrica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 3,
+      "aliases": [
+        "2ª fase",
+        "segunda fase"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Funções inorgânicas",
+      "peso_recorrencia": 0.042,
+      "peso_percentual": 4.2,
+      "subtemas": [
+        {
+          "nome": "Outros",
+          "estrelas": 2
+        },
+        {
+          "nome": "Reações inorgânicas",
+          "estrelas": 1
+        },
+        {
+          "nome": "Teoria ácido-base",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "funcoes inorganicas"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Soluções",
+      "peso_recorrencia": 0.025,
+      "peso_percentual": 2.5,
+      "subtemas": [
+        {
+          "nome": "Cálculo de concentração",
+          "estrelas": 2
+        },
+        {
+          "nome": "Propriedades coligativas",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 2,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "solucoes"
+      ]
+    },
+    {
+      "disciplina": "Química",
+      "fase": "segunda_fase",
+      "fonte": "raw/quimica_segunda_fase.md",
+      "tema": "Polímeros e bioquímica",
+      "peso_recorrencia": 0.023,
+      "peso_percentual": 2.3,
+      "subtemas": [
+        {
+          "nome": "Polímeros",
+          "estrelas": 1
+        },
+        {
+          "nome": "Bioquímica",
+          "estrelas": 1
+        }
+      ],
+      "estrelas": 1,
+      "aliases": [
+        "2ª fase",
+        "segunda fase",
+        "polimeros e bioquimica"
+      ]
+    }
+  ]
+}

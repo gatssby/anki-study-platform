@@ -1,0 +1,88 @@
+.database-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, .7fr) minmax(0, 2fr);
+  gap: var(--app-space-4);
+  margin-bottom: var(--app-space-4);
+}
+
+.console-progress-card { display: grid; gap: 9px; }
+.console-progress-card__top,
+.console-progress-head { display: flex; justify-content: space-between; gap: 12px; }
+.console-progress-card__top strong { color: var(--app-text); font-size: 24px; }
+.console-progress-bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--app-border); }
+.console-progress-bar__fill { height: 100%; border-radius: inherit; background: var(--app-primary); }
+.console-progress-copy { margin: 0; }
+
+.console-search-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: var(--app-space-3);
+}
+.console-search-field { display: grid; gap: 5px; }
+.console-search-field > span,
+.console-filter-label { margin: 0; color: var(--app-muted); font-size: 11px; font-weight: 700; }
+.console-filter-actions { display: flex; gap: 6px; }
+.console-filter-groups { display: grid; gap: 10px; }
+.database-filter-details > summary { display: none; }
+.database-mobile-details { display: none; }
+.console-filter-group { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 10px; align-items: start; }
+.console-filter-group.is-collapsed { display: none; }
+.fo-title-cell, .fo-subject { display: grid; gap: 2px; }
+.fo-duration { white-space: nowrap; }
+.database-page .console-table--fo-base { min-width: 820px; }
+.database-page .console-table--database:not(.console-table--fo-base) { min-width: 1080px; }
+.database-page .console-table th { background: #eef2f7; color: #475569; }
+.database-page .console-table td { border-bottom-color: #dbe3ec; }
+.database-page .console-table-title { font-weight: 700; }
+.database-page .console-table th:nth-last-child(1),
+.database-page .console-table td:nth-last-child(1) { width: 110px; }
+.database-page .console-table td:nth-child(4),
+.database-page .console-table td:nth-child(8) { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 767px) {
+  .database-summary-grid { grid-template-columns: 1fr; }
+  .console-search-row { grid-template-columns: 1fr; }
+  .console-filter-actions .console-button { flex: 1; }
+  .console-filter-group { grid-template-columns: 1fr; gap: 5px; }
+  .database-filter-details { border-top: 1px solid var(--app-border); }
+  .database-filter-details > summary {
+    display: flex;
+    min-height: 42px;
+    align-items: center;
+    color: var(--app-text);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .database-filter-details:not([open]) { padding-bottom: 0; }
+  .database-mobile-details { display: block; margin-top: 4px; }
+  .database-mobile-details summary { color: var(--app-primary); font-size: 11px; font-weight: 650; cursor: pointer; }
+  .database-mobile-details span { display: block; margin-top: 4px; color: var(--app-muted); font-size: 11px; line-height: 1.4; }
+  .database-page .console-panel { padding: 12px; }
+  .database-page .console-table-wrap { border: 0; overflow: visible; }
+  .database-page .console-table,
+  .database-page .console-table tbody { display: block; min-width: 0 !important; }
+  .database-page .console-table thead { display: none; }
+  .database-page .console-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--app-border);
+  }
+  .database-page .console-table td { display: block; padding: 0; border: 0; }
+  .database-page .console-table td:nth-last-child(1) { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+  .database-page .console-table--fo-base td:nth-child(1),
+  .database-page .console-table--fo-base td:nth-child(2),
+  .database-page .console-table--fo-base td:nth-child(4),
+  .database-page .console-table--fo-base td:nth-child(6),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(1),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(2),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(4),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(6),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(8),
+  .database-page .console-table--database:not(.console-table--fo-base) td:nth-child(10) { display: none; }
+  .database-page .console-pagination { align-items: stretch; flex-direction: column; }
+  .database-page .console-pagination__actions .console-button { flex: 1; }
+}

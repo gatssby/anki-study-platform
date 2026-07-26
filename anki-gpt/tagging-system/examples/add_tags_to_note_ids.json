@@ -1,0 +1,19 @@
+{
+  "operation_type": "add_tags",
+  "confirmed_by_user": true,
+  "confirmation_message_id": "chatcmpl-confirm-2026-04-17-002",
+  "tags": [
+    "precisa_melhorar",
+    "avaliar"
+  ],
+  "target": {
+    "type": "note_ids",
+    "note_ids": [
+      1609552058612,
+      1621488655312,
+      1618420535525
+    ]
+  },
+  "reason": "Usuario confirmou marcar notas especificas para reavaliacao posterior."
+}
+

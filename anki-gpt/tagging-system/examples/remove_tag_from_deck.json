@@ -1,0 +1,14 @@
+{
+  "operation_type": "remove_tags",
+  "confirmed_by_user": true,
+  "confirmation_message_id": "chatcmpl-confirm-2026-04-17-003",
+  "tags": [
+    "avaliar"
+  ],
+  "target": {
+    "type": "deck",
+    "deck": "#UFPR::Biologia::Bioenergética::Fermentação"
+  },
+  "reason": "Usuario confirmou remover a tag avaliar apos triagem do deck."
+}
+

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% set active_page = "questions" %}
+
+{% block title %}Preview da Questão - Cronograma{% endblock %}
+{% block body_class %}app-page secondary-page review-page review-reading-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/review.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+{% block head_scripts %}
+    <script>
+      window.MathJax = {
+        tex: {
+          inlineMath: [['$', '$']],
+          displayMath: [['$$', '$$']],
+        },
+        options: {
+          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+        },
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">Preview</p>
+          <h1>{{ question.display_title }}</h1>
+          <p class="console-hero__subtitle">Visualização em modo leitura, sem registrar revisão nem alterar agendamento.</p>
+        </div>
+
+        <div class="console-hero__meta">
+          <span>{{ pending_count }} pendente{{ 's' if pending_count != 1 else '' }}</span>
+          <span>Questão #{{ question.id }}</span>
+        </div>
+      </section>
+
+      <section class="console-panel console-panel--deep">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Questão</p>
+            <h2>{{ question.display_title }}</h2>
+          </div>
+          <div class="review-success-actions">
+            <a class="console-button console-button--ghost console-button--compact" href="{{ back_url }}">Voltar</a>
+            <div class="console-meta-group">
+              <span>{{ question.subject }}</span>
+              <span>{{ question.difficulty }}</span>
+              {% if question.error_reason %}
+              <span>{{ question.error_reason }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        {% if question.tags %}
+        <div class="console-chip-row review-question-tags review-review-tags">
+          {% for tag in question.tags %}
+          <span class="console-chip">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="console-note">Sem tags cadastradas.</p>
+        {% endif %}
+
+        <article class="review-card-body">
+          {% if question.statement %}
+          <div class="review-card-copy">
+            {{ question.statement }}
+          </div>
+          {% endif %}
+
+          {% if question.question_image_urls %}
+          <div class="review-image-gallery">
+            {% for image_url in question.question_image_urls %}
+            <div class="review-card-image-wrap">
+              <img class="review-card-image" src="{{ image_url }}" alt="Imagem da questão {{ loop.index }}" />
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <details class="review-resolution-panel" open>
+            <summary>Resolução</summary>
+            {% if question.explanation_html %}
+            <div class="review-markdown-content">{{ question.explanation_html|safe }}</div>
+            {% endif %}
+            {% if question.answer_image_url %}
+            <div class="review-card-image-wrap">
+              <img class="review-card-image" src="{{ question.answer_image_url }}" alt="Imagem da resolução" />
+            </div>
+            {% endif %}
+            {% if not question.explanation_html and not question.answer_image_url %}
+            <p class="console-note">Sem resolução cadastrada.</p>
+            {% endif %}
+          </details>
+        </article>
+      </section>
+{% endblock %}

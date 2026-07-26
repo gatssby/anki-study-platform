@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% set active_page = "questions" %}
+
+{% block title %}Questões - Cronograma{% endblock %}
+{% block body_class %}app-page secondary-page review-page{% endblock %}
+{% block styles %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/review.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}" />
+{% endblock %}
+
+{% block content %}
+
+      <section class="console-hero console-hero--compact">
+        <div class="console-hero__body">
+          <p class="console-kicker">Banco de questões</p>
+          <h1>Questões de revisão</h1>
+          <p class="console-hero__subtitle">Filtre, ajuste e puxe uma questão específica para revisar agora sem misturar com FO/UN.</p>
+        </div>
+
+        <div class="console-hero__meta">
+          <span>{{ pending_count }} pendente{{ 's' if pending_count != 1 else '' }}</span>
+          <span>Uploads em data/review_questions/uploads</span>
+        </div>
+      </section>
+
+      {% if created_question %}
+      <section class="console-panel console-panel--accent review-success-panel">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Sucesso</p>
+            <h2>Questão salva</h2>
+          </div>
+          <div class="console-meta-group">
+            <span>{{ created_question.subject }}</span>
+            <span>Revisar em {{ created_question.next_review_date|br_date }}</span>
+          </div>
+        </div>
+        <p class="console-note">{{ created_question.display_title }} cadastrada com agendamento inicial automático.</p>
+      </section>
+      {% endif %}
+
+      {% if updated_question %}
+      <section class="console-panel console-panel--accent review-success-panel">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Sucesso</p>
+            <h2>Questão atualizada</h2>
+          </div>
+          <div class="console-meta-group">
+            <span>{{ updated_question.subject }}</span>
+            <span>Próxima revisão {{ updated_question.next_review_date|br_date }}</span>
+          </div>
+        </div>
+        <p class="console-note">{{ updated_question.display_title }} foi atualizada sem alterar o histórico de tentativas.</p>
+      </section>
+      {% endif %}
+
+      {% if deleted_flag %}
+      <section class="console-panel console-panel--accent review-success-panel">
+        <div class="console-section-head">
+          <div>
+            <p class="console-panel-label">Sucesso</p>
+            <h2>Questão apagada</h2>
+          </div>
+        </div>
+        <p class="console-note">A questão, o histórico de revisões e os anexos exclusivos dela foram removidos.</p>
+      </section>
+      {% endif %}
+
+      <section class="review-questions-grid">
+        <aside class="review-questions-sidebar">
+          <section class="console-panel console-panel--accent">
+            <div class="console-section-head console-section-head--stacked">
+              <div>
+                <p class="console-panel-label">Ações</p>
+                <h2>Módulo separado</h2>
+              </div>
+            </div>
+
+            <p class="console-note">Use o banco para localizar questões, editar classificação e puxar revisão avulsa quando fizer sentido.</p>
+            <div class="review-success-actions">
+              <a class="console-button console-button--primary" href="{{ url_for('review_questions_review') }}">Revisar hoje</a>
+              <a class="console-button console-button--ghost" href="{{ url_for('review_questions_new') }}">Cadastrar questão</a>
+            </div>
+          </section>
+
+          <section class="console-panel">
+            <div class="console-section-head console-section-head--stacked">
+              <div>
+                <p class="console-panel-label">Filtros</p>
+                <h2>Banco</h2>
+              </div>
+            </div>
+
+            <form method="get" class="console-form review-filter-form">
+              <label class="review-form-field">
+                <span>Status</span>
+                <select name="status">
+                  <option value="all" {{ 'selected' if status_filter == 'all' else '' }}>Todos</option>
+                  <option value="pending_today" {{ 'selected' if status_filter == 'pending_today' else '' }}>Pendentes hoje</option>
+                  <option value="overdue" {{ 'selected' if status_filter == 'overdue' else '' }}>Atrasadas</option>
+                  <option value="future" {{ 'selected' if status_filter == 'future' else '' }}>Futuras</option>
+                  <option value="suspended" {{ 'selected' if status_filter == 'suspended' else '' }}>Suspensas</option>
+                </select>
+              </label>
+
+              <label class="review-form-field">
+                <span>Matéria</span>
+                <select name="subject">
+                  <option value="all" {{ 'selected' if subject_filter == 'all' else '' }}>Todas</option>
+                  {% for subject in filter_options.subjects %}
+                  <option value="{{ subject }}" {{ 'selected' if subject_filter == subject else '' }}>{{ subject }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field">
+                <span>Dificuldade</span>
+                <select name="difficulty">
+                  <option value="all" {{ 'selected' if difficulty_filter == 'all' else '' }}>Todas</option>
+                  {% for difficulty in filter_options.difficulties %}
+                  <option value="{{ difficulty }}" {{ 'selected' if difficulty_filter == difficulty else '' }}>{{ difficulty }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field">
+                <span>Motivo</span>
+                <select name="reason">
+                  <option value="all" {{ 'selected' if error_reason_filter == 'all' else '' }}>Todos</option>
+                  {% for reason in filter_options.error_reasons %}
+                  <option value="{{ reason }}" {{ 'selected' if error_reason_filter == reason else '' }}>{{ reason }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="review-form-field">
+                <span>Tag</span>
+                <input type="text" name="tag" value="{{ tag_filter }}" placeholder="Busca por substring" />
+              </label>
+
+              <label class="review-form-field">
+                <span>Busca</span>
+                <input type="text" name="q" value="{{ search }}" placeholder="Enunciado, resolução ou título antigo" />
+              </label>
+
+              <div class="review-success-actions">
+                <button type="submit" class="console-button console-button--primary">Aplicar</button>
+                <a class="console-button console-button--ghost" href="{{ url_for('review_questions_home') }}">Limpar</a>
+              </div>
+            </form>
+          </section>
+        </aside>
+
+        <section class="console-panel">
+          <div class="console-section-head">
+            <div>
+              <p class="console-panel-label">Listagem</p>
+              <h2>Banco de questões</h2>
+            </div>
+            <div class="console-meta-group">
+              <span>{{ pagination.total_rows }} total</span>
+              <span>{{ pagination.page_start }}-{{ pagination.page_end }}</span>
+            </div>
+          </div>
+
+          {% if pagination.total_rows %}
+          <div class="console-pagination">
+            <span class="console-pagination__status">Página {{ pagination.page }} de {{ pagination.total_pages }}</span>
+            <div class="console-pagination__actions">
+              {% if pagination.has_prev %}
+              <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.prev_url }}">Anterior</a>
+              {% endif %}
+              {% if pagination.has_next %}
+              <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.next_url }}">Próxima</a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="console-table-wrap">
+            <table class="console-table console-table--database console-table--review-bank">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Questão / título</th>
+                  <th>Matéria</th>
+                  <th>Dificuldade</th>
+                  <th>Motivo do erro</th>
+                  <th>Tags</th>
+                  <th>Próxima revisão</th>
+                  <th>Revisões</th>
+                  <th>Acertos</th>
+                  <th>Erros</th>
+                  <th>Não sei</th>
+                  <th>Suspensa</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for question in questions %}
+                <tr class="{{ 'is-overdue' if question.status_meta.code == 'overdue' else '' }}">
+                  <td>
+                    <span class="{{ question.status_meta.class_name }}">{{ question.status_meta.label }}</span>
+                  </td>
+                  <td>
+                    <div class="review-table-title">
+                      <span class="console-table-title">{{ question.display_title }}</span>
+                      {% if question.statement %}
+                      <small class="console-inline-meta">{{ question.statement[:140] }}{{ '…' if question.statement|length > 140 else '' }}</small>
+                      {% elif question.question_image_paths %}
+                      <small class="console-inline-meta">{{ question.question_image_paths|length }} {{ 'imagem' if question.question_image_paths|length == 1 else 'imagens' }} da questão</small>
+                      {% endif %}
+                    </div>
+                  </td>
+                  <td>{{ question.subject }}</td>
+                  <td>{{ question.difficulty }}</td>
+                  <td>{{ question.error_reason or '-' }}</td>
+                  <td>
+                    {% if question.tags %}
+                    <div class="console-chip-row review-table-tags">
+                      {% for tag in question.tags %}
+                      <span class="console-chip">{{ tag }}</span>
+                      {% endfor %}
+                    </div>
+                    {% else %}
+                    <span class="status-muted">Sem tags</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ question.next_review_date|br_date }}</td>
+                  <td>{{ question.review_count }}</td>
+                  <td>{{ question.correct_count }}</td>
+                  <td>{{ question.wrong_count }}</td>
+                  <td>{{ question.dont_know_count }}</td>
+                  <td>{{ 'Sim' if question.is_suspended else 'Não' }}</td>
+                  <td>
+                    <div class="review-table-actions">
+                      <a class="console-button console-button--ghost console-button--compact" href="{{ url_for('review_questions_edit', question_id=question.id) }}">Editar</a>
+                      <a class="console-button console-button--primary console-button--compact" href="{{ url_for('review_questions_preview', question_id=question.id, return_to=current_listing_url) }}">Preview</a>
+                      {% if question.is_suspended %}
+                      <form method="post" action="{{ url_for('review_questions_reactivate', question_id=question.id) }}">
+                        <input type="hidden" name="return_to" value="{{ current_listing_url }}" />
+                        <button type="submit" class="console-button console-button--ghost console-button--compact">Reativar</button>
+                      </form>
+                      {% else %}
+                      <form method="post" action="{{ url_for('review_questions_suspend', question_id=question.id) }}">
+                        <input type="hidden" name="return_to" value="{{ current_listing_url }}" />
+                        <button type="submit" class="console-button console-button--ghost console-button--compact">Suspender</button>
+                      </form>
+                      {% endif %}
+                      <form
+                        method="post"
+                        action="{{ url_for('review_questions_delete', question_id=question.id) }}"
+                        onsubmit="return confirm('Apagar esta questão? Essa ação remove a questão, o histórico de revisões e as imagens anexadas. Não é possível desfazer.');"
+                      >
+                        <input type="hidden" name="return_to" value="{{ current_listing_url }}" />
+                        <button type="submit" class="console-button console-button--danger console-button--compact">Apagar</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="console-pagination console-pagination--bottom">
+            <span class="console-pagination__status">{{ pagination.page_start }}-{{ pagination.page_end }} de {{ pagination.total_rows }}</span>
+            <div class="console-pagination__actions">
+              {% if pagination.has_prev %}
+              <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.prev_url }}">Anterior</a>
+              {% endif %}
+              {% if pagination.has_next %}
+              <a class="console-button console-button--ghost console-button--compact" href="{{ pagination.next_url }}">Próxima</a>
+              {% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div class="console-empty-state">
+            <p>Nenhuma questão encontrada com os filtros atuais.</p>
+          </div>
+          {% endif %}
+        </section>
+      </section>
+{% endblock %}

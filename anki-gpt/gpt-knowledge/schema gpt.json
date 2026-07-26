@@ -1,0 +1,1669 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anki GPT Stable API",
+    "version": "3.0.0",
+    "description": "Schema estável para GPT Builder. A API é majoritariamente de leitura; a única escrita exposta ao GPT é o reorder Created/Added por ordem lógica via addon local do Anki."
+  },
+  "servers": [
+    {
+      "url": "https://gatsby-anki.137.131.191.66.nip.io"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "TaggingToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Tagging-Token"
+      }
+    },
+    "schemas": {
+      "ExecutionMode": {
+        "type": "string",
+        "enum": ["preview", "direct"],
+        "default": "direct",
+        "description": "Intencao de execucao, separada de status. direct aplica na proxima consulta do addon sem confirmacao manual; preview apenas simula quando o usuario pedir explicitamente."
+      },
+      "ExecutionModeCompatibility": {
+        "type": "object",
+        "description": "Quando execution_mode e dry_run coexistem, direct exige false e preview exige true.",
+        "allOf": [
+          {
+            "if": {"properties": {"execution_mode": {"const": "direct"}}, "required": ["execution_mode"]},
+            "then": {"properties": {"dry_run": {"const": false}}}
+          },
+          {
+            "if": {"properties": {"execution_mode": {"const": "preview"}}, "required": ["execution_mode"]},
+            "then": {"properties": {"dry_run": {"const": true}}}
+          },
+          {
+            "if": {"properties": {"dry_run": {"const": false}}, "required": ["dry_run"]},
+            "then": {"properties": {"execution_mode": {"const": "direct"}}}
+          },
+          {
+            "if": {"properties": {"dry_run": {"const": true}}, "required": ["dry_run"]},
+            "then": {"properties": {"execution_mode": {"const": "preview"}}}
+          }
+        ]
+      },
+      "NoteFieldUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["note_id", "fields"],
+        "properties": {
+          "note_id": {"type": "integer"},
+          "fields": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {"type": "string"}
+          },
+          "expected_content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Obrigatorio em update_note_fields direct/apply v2. Deve ficar no nivel do item, nunca dentro de precondition. Use o hash publicado do note; em preview legado tambem pode vir de result.apply_preconditions."
+          },
+          "expected_mod": {
+            "type": ["integer", "null"],
+            "description": "Precondicao opcional de versao, no nivel do item."
+          },
+          "expected_usn": {
+            "type": ["integer", "null"],
+            "description": "Precondicao opcional de sincronizacao, no nivel do item."
+          },
+          "expected_model_id": {
+            "type": ["integer", "null"],
+            "description": "Precondicao opcional de note type, no nivel do item."
+          }
+        }
+      },
+      "ApplyPrecondition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["note_id", "expected_content_hash"],
+        "properties": {
+          "note_id": {"type": "integer"},
+          "expected_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "expected_mod": {"type": ["integer", "null"]},
+          "expected_usn": {"type": ["integer", "null"]},
+          "expected_model_id": {"type": ["integer", "null"]}
+        },
+        "description": "Item de result.apply_preconditions para o fluxo preview legado. O caminho direto usa as precondicoes publicadas do note no primeiro payload."
+      },
+      "NoteFieldUpdatesCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "note_updates_json": {
+            "type": "string",
+            "contentMediaType": "application/json",
+            "contentSchema": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {"$ref": "#/components/schemas/NoteFieldUpdate"}
+            },
+            "description": "String JSON contendo NoteFieldUpdate. Em direct, expected_content_hash e obrigatorio em cada item. Em preview explicito, expected_* pode ser omitido."
+          },
+          "dry_run_operation_id": {
+            "type": "string",
+            "pattern": "^orgop-",
+            "description": "Compatibilidade do fluxo preview: operation_id de uma preview update_note_fields concluida. O backend combina o lote original com result.apply_preconditions e cria um updates_id pronto para direct/apply v2."
+          },
+          "requested_by": {"type": "string", "default": "gpt"},
+          "reason": {"type": "string"}
+        },
+        "oneOf": [
+          {"required": ["note_updates_json"], "not": {"required": ["dry_run_operation_id"]}},
+          {"required": ["dry_run_operation_id"], "not": {"required": ["note_updates_json"]}}
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/decks": {
+      "get": {
+        "summary": "Lista decks no snapshot, com metadados e contagens quando disponiveis",
+        "operationId": "getDecks",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filtra decks por prefixo"
+          },
+          {
+            "name": "details",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "1"
+            },
+            "description": "Use 0 para omitir deck_details"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/sync/full": {
+      "get": {
+        "summary": "Confirma o estado publicado do ultimo snapshot completo",
+        "operationId": "getFullSyncStatus",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/cards/by-deck": {
+      "get": {
+        "summary": "Lista cards/notes por deck exato",
+        "operationId": "getCardsByDeck",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deck",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/cards/search": {
+      "get": {
+        "summary": "Busca cards/notes materializados no snapshot; q=deck:<nome> tambem filtra por deck atual do card",
+        "operationId": "searchCards",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deck",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/cards/search-real": {
+      "get": {
+        "summary": "Busca cards reais no snapshot enriquecido; q=deck:<nome> tambem filtra por deck atual do card",
+        "operationId": "searchRealCards",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "deck",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "card_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/cards/query-ids": {
+      "get": {
+        "summary": "Busca TODOS os card_ids/note_ids de uma query/deck antes da materializacao em lotes",
+        "description": "Use este endpoint como primeiro passo para auditoria e reorder de decks grandes. Ele retorna todos os IDs correspondentes. Os lotes devem ser usados em /cards/materialize para leitura; qualquer reorder deve ser calculado somente após consolidar todos os lotes.",
+        "operationId": "getCardIdsForQuery",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON com card_ids, note_ids, card_to_note e contagens globais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pode usar deck:<nome> para deck exato"
+          },
+          {
+            "name": "deck",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Deck exato. Para o teste: #UFPR::História::Brasil::• Colônia"
+          },
+          {
+            "name": "prefix",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "root",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/cards/materialize": {
+      "get": {
+        "summary": "Materializa UM LOTE de card_ids/note_ids sem ordenar logicamente",
+        "description": "Use somente depois de /cards/query-ids e apenas para leitura em lotes. Não analise lote a lote de forma definitiva. Consolide todos os lotes primeiro; se o objetivo for reorder, gere uma única ordem global para /organization/reorder-cards-by-material.",
+        "operationId": "materializeCardsBatch",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON com notes/cards materializados do lote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "IDs ausentes ou parametros invalidos"
+          },
+          "404": {
+            "description": "Um ou mais IDs do lote não foram encontrados."
+          },
+          "413": {
+            "description": "Lote excede ANKI_GPT_MAX_BATCH_BYTES; divida em lote menor"
+          }
+        },
+        "parameters": [
+          {
+            "name": "card_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "IDs separados por virgula. Sugestao: 25 ou 40 por lote."
+          },
+          {
+            "name": "note_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "card",
+                "note"
+              ]
+            },
+            "description": "Use note quando o reorder final usar ordered_note_ids."
+          },
+          {
+            "name": "batch_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "batch_total",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "max_bytes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Limite de bytes do lote; default vem de ANKI_GPT_MAX_BATCH_BYTES."
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/fo/materials": {
+      "get": {
+        "summary": "Lista metadados de materiais PDF do Federal Online",
+        "operationId": "getFoMaterials",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "portal_subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "output_subject",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "description": "Retorna lista de materiais FO por metadados. O parametro q usa busca tolerante por acentos, pontuacao e tokens; nao extrai texto do PDF.",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/fo/material": {
+      "get": {
+        "summary": "Consulta material FO e opcionalmente extrai texto do PDF",
+        "operationId": "getFoMaterial",
+        "responses": {
+          "200": {
+            "description": "Metadados do material, ou metadados + texto extraido quando extract_text=true",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "relative_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "extract_text",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Quando true, extrai texto do PDF e retorna text/extraction em JSON."
+          },
+          {
+            "name": "start_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Pagina inicial, 1-based. Alias preferencial de page."
+          },
+          {
+            "name": "page_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 5
+            },
+            "description": "Quantidade maxima de paginas a extrair. Alias preferencial de limit."
+          },
+          {
+            "name": "max_chars",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20000
+            },
+            "description": "Limite maximo de caracteres retornados na extracao."
+          }
+        ],
+        "description": "Sem extract_text, retorna metadados do material. Com extract_text=true, retorna JSON com material, text e extraction para paginas do PDF; use esta forma quando o GPT precisa ler conteudo sem baixar binario.",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/fo/transcripts": {
+      "get": {
+        "summary": "Busca/lista metadados de transcrições FO; use /fo/transcript para obter o texto",
+        "operationId": "getFoTranscripts",
+        "description": "Retorna metadados das transcrições FO, como id, título, caminho, status, chars e exists. Para obter texto, chame getFoTranscript em /fo/transcript com id e max_chars.",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "done"
+            }
+          },
+          {
+            "name": "exists",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "materia",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "frente",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "aula_number",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/fo/transcript": {
+      "get": {
+        "summary": "Retorna texto de uma transcrição FO por id, q, remote_path ou relative_path",
+        "operationId": "getFoTranscript",
+        "description": "Retorna o texto da transcrição. Preferência: localize o id em /fo/transcripts e depois chame /fo/transcript com id e max_chars. Também aceita q, remote_path ou relative_path.",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON com metadados e texto da transcrição",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transcrição não encontrada"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID da transcrição na fila. Método preferencial após localizar a aula em /fo/transcripts."
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Busca textual direta quando o id ainda não foi localizado. Ex.: História I Aula 06."
+          },
+          {
+            "name": "remote_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Caminho remoto exato do vídeo no OneDrive/manifesto, quando conhecido."
+          },
+          {
+            "name": "relative_path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Caminho relativo exato da transcrição ou do vídeo. Mantido para compatibilidade."
+          },
+          {
+            "name": "max_chars",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20000
+            },
+            "description": "Número máximo de caracteres de texto a retornar."
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/fo/transcripts/search": {
+      "get": {
+        "summary": "Busca texto dentro das transcrições FO",
+        "operationId": "searchFoTranscripts",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "materia",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "frente",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/organization/operations": {
+      "get": {
+        "summary": "Lista operações organization pendentes ou finalizadas",
+        "description": "Lista modo e estado separadamente. Operacoes direct concluem sem confirmacao manual. Previews update_note_fields concluidas mantem apply_preconditions para compatibilidade.",
+        "operationId": "getOrganizationOperations",
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "pending"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/organization/reorder-order-create": {
+      "get": {
+        "summary": "Cria order_id por GET",
+        "description": "Salva a ordem global via query CSV e retorna order_id. Use antes do reorder final para evitar payload grande.",
+        "operationId": "createReorderOrderGet",
+        "deprecated": true,
+        "x-successor-method": "POST",
+        "x-successor-path": "/organization/reorder-order",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deck",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ordered_note_ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "IDs globais separados por virgula."
+          },
+          {
+            "name": "expected_eligible_card_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Opcional; IDs separados por virgula."
+          },
+          {
+            "name": "target_created_column",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "note"
+            }
+          },
+          {
+            "name": "requested_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gpt"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria order_id por POST",
+        "operationId": "createReorderOrderPost",
+        "security": [{"TaggingToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}
+        },
+        "responses": {
+          "200": {"description": "Resposta JSON"},
+          "400": {"description": "Payload invalido"},
+          "401": {"description": "Token ausente ou invalido"}
+        }
+      }
+    },
+    "/organization/reorder-cards-by-material-create": {
+      "get": {
+        "summary": "Cria operacao reorder por GET",
+        "description": "Cria reorder usando order_id. O default e execution_mode=direct; use preview apenas quando o usuario pedir simulacao. Nao envia listas grandes na operacao.",
+        "operationId": "createReorderCardsByMaterialGet",
+        "deprecated": true,
+        "x-successor-method": "POST",
+        "x-successor-path": "/organization/reorder-cards-by-material",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "deck",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "execution_mode",
+            "in": "query",
+            "required": false,
+            "schema": {"$ref": "#/components/schemas/ExecutionMode"}
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Compatibilidade: false=direct, true=preview. Deve ser coerente com execution_mode."
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "currently_new_cards"
+            }
+          },
+          {
+            "name": "require_global_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "apply_created_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "name": "target_created_column",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "multi_card_note_policy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "group_if_all_new"
+            }
+          },
+          {
+            "name": "spacing_ms",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 60000
+            }
+          },
+          {
+            "name": "requested_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gpt"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria operacao reorder por POST",
+        "description": "Aplicacao real por padrao. Envie execution_mode=preview somente apos pedido explicito de previa.",
+        "operationId": "createReorderCardsByMaterialPost",
+        "security": [{"TaggingToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "allOf": [{"$ref": "#/components/schemas/ExecutionModeCompatibility"}],
+            "additionalProperties": true,
+            "properties": {
+              "execution_mode": {"$ref": "#/components/schemas/ExecutionMode"},
+              "dry_run": {"type": "boolean", "default": false, "description": "Compatibilidade com execution_mode."}
+            }
+          }}}
+        },
+        "responses": {
+          "200": {"description": "Resposta JSON"},
+          "400": {"description": "Payload invalido"},
+          "401": {"description": "Token ausente ou invalido"}
+        }
+      }
+    },
+    "/organization/note-field-updates-create": {
+      "get": {
+        "summary": "Cria updates_id por GET",
+        "description": "Salva updates de campos e retorna updates_id. Para direct/apply v2, cada item ja deve conter expected_content_hash. dry_run_operation_id permanece disponivel para promover uma preview pelo fluxo legado.",
+        "operationId": "createNoteFieldUpdatesGet",
+        "deprecated": true,
+        "x-successor-method": "POST",
+        "x-successor-path": "/organization/note-field-updates-create",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_updates_json",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "contentMediaType": "application/json",
+              "contentSchema": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "items": {"$ref": "#/components/schemas/NoteFieldUpdate"}
+              }
+            },
+            "description": "JSON URL-encoded com lista de NoteFieldUpdate. As precondicoes do apply v2 sao expected_content_hash, expected_mod, expected_usn e expected_model_id no nivel de cada item."
+          },
+          {
+            "name": "requested_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gpt"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria updates_id por POST",
+        "description": "Envie note_updates_json com precondicoes para o fluxo direct padrao. Se o usuario pediu preview e depois decidiu aplicar, dry_run_operation_id cria um updates_id condicionado pelo fluxo legado.",
+        "operationId": "createNoteFieldUpdatesPost",
+        "security": [{"TaggingToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/NoteFieldUpdatesCreateRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Resposta JSON"},
+          "400": {"description": "Payload invalido"},
+          "401": {"description": "Token ausente ou invalido"}
+        }
+      }
+    },
+    "/organization/update-note-fields-create": {
+      "get": {
+        "summary": "Cria update_note_fields por GET",
+        "description": "Cria update_note_fields usando updates_id. O default e direct e exige expected_content_hash no lote. Use preview apenas por pedido explicito; o fluxo legado pode promover a preview depois.",
+        "operationId": "createUpdateNoteFieldsGet",
+        "deprecated": true,
+        "x-successor-method": "POST",
+        "x-successor-path": "/organization/update-note-fields-create",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "updates_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "execution_mode",
+            "in": "query",
+            "required": false,
+            "schema": {"$ref": "#/components/schemas/ExecutionMode"}
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Compatibilidade: false=direct, true=preview. Deve ser coerente com execution_mode."
+          },
+          {
+            "name": "requested_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "gpt"
+            }
+          },
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Cria update_note_fields por POST",
+        "description": "Cria aplicacao real por padrao. O updates_id de direct deve conter expected_content_hash por item. Use execution_mode=preview somente se o usuario pedir; dry_run_operation_id permanece para promocao legado.",
+        "operationId": "createUpdateNoteFieldsPost",
+        "security": [{"TaggingToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "allOf": [{"$ref": "#/components/schemas/ExecutionModeCompatibility"}],
+            "additionalProperties": false,
+            "required": ["updates_id"],
+            "properties": {
+              "updates_id": {"type": "string", "pattern": "^nfupd-"},
+              "execution_mode": {"$ref": "#/components/schemas/ExecutionMode"},
+              "dry_run": {"type": "boolean", "default": false, "description": "Compatibilidade: false=direct, true=preview; combinacoes incompatíveis sao rejeitadas."},
+              "confirmed_by_user": {"type": "boolean", "deprecated": true, "description": "Metadado legado; nao e precondicao de execucao."},
+              "requested_by": {"type": "string", "default": "gpt"},
+              "reason": {"type": "string"}
+            }
+          }}}
+        },
+        "responses": {
+          "200": {"description": "Resposta JSON"},
+          "400": {"description": "Payload invalido"},
+          "401": {"description": "Token ausente ou invalido"}
+        }
+      }
+    },
+    "/ufpr/obras/query": {
+      "post": {
+        "summary": "Busca trechos nas obras e referências UFPR 2027",
+        "description": "Busca textual read-only em Literatura, Filosofia e Sociologia da UFPR 2027. Use para localizar trechos por tema, conceito, personagem, termo, cidade, autor ou eixo de análise. Não retorna obra inteira.",
+        "operationId": "queryUfprObras",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "categoria": {
+                    "type": "string",
+                    "enum": [
+                      "literatura",
+                      "filosofia",
+                      "sociologia"
+                    ],
+                    "description": "Opcional. Se omitida, busca em todas as categorias."
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Opcional. Id normalizado da obra ou referência no manifest."
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "Texto obrigatório a buscar."
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "default": 8
+                  },
+                  "context_chars": {
+                    "type": "integer",
+                    "default": 1200
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/ufpr/obras/trecho": {
+      "get": {
+        "summary": "Retorna uma fatia controlada de uma obra ou referência UFPR 2027",
+        "description": "Retorna trecho controlado de um arquivo textual UFPR 2027. Use depois de /ufpr/obras/query quando precisar expandir contexto em torno de uma obra/texto. Não usar para tentar retornar obra inteira de uma vez.",
+        "operationId": "getUfprObraTrecho",
+        "parameters": [
+          {
+            "name": "categoria",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "literatura",
+                "filosofia",
+                "sociologia"
+              ]
+            }
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "chars",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 4000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta JSON",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {}
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    }
+  }
+}

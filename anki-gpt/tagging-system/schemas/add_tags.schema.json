@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AddTagsOperation",
+  "type": "object",
+  "required": ["operation_type", "confirmed_by_user", "tags", "target"],
+  "additionalProperties": false,
+  "properties": {
+    "operation_type": {
+      "const": "add_tags"
+    },
+    "confirmed_by_user": {
+      "type": "boolean",
+      "const": true
+    },
+    "confirmation_message_id": {
+      "type": "string"
+    },
+    "origin": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/allowed_tag"
+      },
+      "uniqueItems": true
+    },
+    "target": {
+      "$ref": "#/$defs/target"
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "allowed_tag": {
+      "enum": [
+        "prio:alta",
+        "prio:media",
+        "prio:baixa",
+        "avaliar",
+        "precisa_melhorar",
+        "overkill",
+        "duplicado",
+        "bom_card"
+      ]
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "deck"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "deck"
+            },
+            "deck": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "note_ids"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "const": "note_ids"
+            },
+            "note_ids": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "integer"
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

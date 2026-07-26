@@ -1,0 +1,745 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Anki GPT Organization Wrapper API",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://gatsby-anki.137.131.191.66.nip.io"
+    }
+  ],
+  "paths": {
+    "/organization/reorder-order": {
+      "post": {
+        "summary": "Salva ordem global de reorder em arquivo separado",
+        "description": "Cria um order_id para decks medios/grandes. Envie ordered_note_ids global completo aqui e use o order_id em /organization/reorder-cards-by-material para evitar payload grande na operacao.",
+        "operationId": "createReorderOrder",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "deck",
+                  "ordered_note_ids"
+                ],
+                "properties": {
+                  "deck": {
+                    "type": "string"
+                  },
+                  "ordered_note_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1,
+                    "description": "Lista global completa de note IDs na ordem logica final. Duplicatas sao rejeitadas."
+                  },
+                  "expected_eligible_card_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Opcional; lista de card IDs elegiveis esperados para checagem no addon."
+                  },
+                  "target_created_column": {
+                    "type": "string",
+                    "default": "note",
+                    "enum": [
+                      "note"
+                    ]
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "gpt"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "deck": "#UFPR::História::Brasil::• Colônia",
+                "target_created_column": "note",
+                "ordered_note_ids": [
+                  1111111111111,
+                  2222222222222
+                ],
+                "expected_eligible_card_ids": [
+                  3333333333333,
+                  4444444444444
+                ],
+                "requested_by": "gpt",
+                "reason": "Ordem global consolidada apos /cards/query-ids e /cards/materialize"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ordem salva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "order_id": {
+                      "type": "string"
+                    },
+                    "deck": {
+                      "type": "string"
+                    },
+                    "target_created_column": {
+                      "type": "string"
+                    },
+                    "ordered_note_ids_count": {
+                      "type": "integer"
+                    },
+                    "expected_eligible_card_ids_count": {
+                      "type": "integer"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    },
+                    "first_ordered_note_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "last_ordered_note_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        }
+      },
+      "get": {
+        "summary": "Retorna ordem de reorder salva por order_id",
+        "description": "Endpoint usado pelo addon para carregar ordered_note_ids em memoria durante a execucao do reorder.",
+        "operationId": "getReorderOrder",
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo de ordem completo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order_id": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "deck": {
+                      "type": "string"
+                    },
+                    "target_created_column": {
+                      "type": "string"
+                    },
+                    "ordered_note_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "ordered_note_ids_count": {
+                      "type": "integer"
+                    },
+                    "expected_eligible_card_ids": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer"
+                      }
+                    },
+                    "expected_eligible_card_ids_count": {
+                      "type": "integer"
+                    },
+                    "sha256": {
+                      "type": "string"
+                    },
+                    "requested_by": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "order_id invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          },
+          "404": {
+            "description": "order_id nao encontrado"
+          }
+        }
+      }
+    },
+    "/organization/reorder-cards-by-material": {
+      "post": {
+        "summary": "Cria operacao reorder_cards_by_material com order_id ou ordered_note_ids inline",
+        "description": "Use /organization/reorder-order para salvar ordered_note_ids em arquivo separado e envie order_id aqui, especialmente em decks medios/grandes. O modo antigo com ordered_note_ids inline continua aceito para decks pequenos. A ordem deve ser global apos /cards/query-ids e /cards/materialize; nunca envie ordem parcial ou por lote.",
+        "operationId": "createReorderCardsByMaterialOperation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirmed_by_user",
+                  "deck"
+                ],
+                "properties": {
+                  "confirmed_by_user": {
+                    "type": "boolean",
+                    "description": "Deve ser true."
+                  },
+                  "deck": {
+                    "type": "string"
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "scope": {
+                    "type": "string",
+                    "default": "currently_new_cards",
+                    "enum": [
+                      "currently_new_cards"
+                    ]
+                  },
+                  "apply_created_date": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "target_created_column": {
+                    "type": "string",
+                    "default": "note",
+                    "enum": [
+                      "note"
+                    ]
+                  },
+                  "multi_card_note_policy": {
+                    "type": "string",
+                    "default": "group_if_all_new",
+                    "enum": [
+                      "group_if_all_new"
+                    ]
+                  },
+                  "spacing_ms": {
+                    "type": "integer",
+                    "default": 60000
+                  },
+                  "base_datetime": {
+                    "type": "string"
+                  },
+                  "ordered_note_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "minItems": 1,
+                    "description": "Modo legado inline para decks pequenos; use order_id para listas grandes."
+                  },
+                  "expected_eligible_count": {
+                    "type": "integer"
+                  },
+                  "expected_eligible_card_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "require_global_order": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "material_context": {
+                    "type": "string"
+                  },
+                  "ordering_notes": {
+                    "type": "string"
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "gpt"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "order_id": {
+                    "type": "string",
+                    "description": "Referencia curta criada por /organization/reorder-order. Recomendado para decks medios/grandes."
+                  }
+                }
+              },
+              "example": {
+                "confirmed_by_user": true,
+                "deck": "#UFPR::História::Brasil::• Colônia",
+                "dry_run": true,
+                "scope": "currently_new_cards",
+                "apply_created_date": true,
+                "target_created_column": "note",
+                "multi_card_note_policy": "group_if_all_new",
+                "spacing_ms": 60000,
+                "require_global_order": true,
+                "requested_by": "gpt",
+                "reason": "Reorder global usando ordem salva por /organization/reorder-order",
+                "order_id": "rord-20260613T000000000000Z-example01"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operacao criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "operation": {
+                      "type": "object"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/organization/update-note-fields": {
+      "post": {
+        "summary": "Cria operacao update_note_fields na fila organization",
+        "operationId": "createUpdateNoteFieldsOperation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirmed_by_user",
+                  "note_updates"
+                ],
+                "properties": {
+                  "confirmed_by_user": {
+                    "type": "boolean",
+                    "description": "Deve ser true."
+                  },
+                  "note_updates": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "note_id",
+                        "fields"
+                      ],
+                      "properties": {
+                        "note_id": {
+                          "type": "integer"
+                        },
+                        "fields": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "expected_content_hash": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$",
+                          "description": "Obrigatorio no apply v2; retornado pelo dry-run."
+                        },
+                        "expected_mod": {
+                          "type": "integer"
+                        },
+                        "expected_usn": {
+                          "type": "integer"
+                        },
+                        "expected_model_id": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "gpt"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "confirmed_by_user": true,
+                "note_updates": [
+                  {
+                    "note_id": 1778103173630,
+                    "fields": {
+                      "Text": "A {{c1::<span class=\"kw\">membrana plasmática</span>::<span class=\"hint\">estrutura</span>}} controla trocas com o meio.",
+                      "Back Extra": "Use poucos grifos com <span class=\"kw\">kw</span>."
+                    }
+                  }
+                ],
+                "dry_run": true,
+                "requested_by": "gpt",
+                "reason": "Grifar card existente sem alterar deck, tags ou scheduling"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operacao criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "operation": {
+                      "type": "object"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ],
+        "description": "No protocolo v2, dry_run=false exige precondicoes retornadas pelo dry-run e operacao com menos de 24 horas."
+      }
+    },
+    "/organization/replace-note-tags": {
+      "post": {
+        "summary": "Cria operacao replace_note_tags na fila organization",
+        "operationId": "createReplaceNoteTagsOperation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirmed_by_user",
+                  "note_ids"
+                ],
+                "properties": {
+                  "confirmed_by_user": {
+                    "type": "boolean",
+                    "description": "Deve ser true."
+                  },
+                  "note_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "remove_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "add_tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "gpt"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "confirmed_by_user": true,
+                "note_ids": [
+                  1778103173630
+                ],
+                "remove_tags": [
+                  "criado_por_gpt"
+                ],
+                "add_tags": [
+                  "GPT"
+                ],
+                "dry_run": true,
+                "requested_by": "gpt",
+                "reason": "Padronizar tags"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operacao criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "operation": {
+                      "type": "object"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    },
+    "/organization/create-note": {
+      "post": {
+        "summary": "Cria operacao create_note na fila organization",
+        "operationId": "createNoteOperation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirmed_by_user",
+                  "deck_name",
+                  "model_name",
+                  "fields"
+                ],
+                "properties": {
+                  "confirmed_by_user": {
+                    "type": "boolean",
+                    "description": "Deve ser true."
+                  },
+                  "deck_name": {
+                    "type": "string"
+                  },
+                  "model_name": {
+                    "type": "string"
+                  },
+                  "fields": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": [
+                      "GPT"
+                    ]
+                  },
+                  "allow_duplicate": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "requested_by": {
+                    "type": "string",
+                    "default": "gpt"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "confirmed_by_user": true,
+                "deck_name": "#UFPR::Teste GPT::Card Creation",
+                "model_name": "prettify-minimal-cloze",
+                "fields": {
+                  "Text": "A membrana plasmática é formada por uma {{c1::<span class=\"kw\">bicamada fosfolipídica</span>::<span class=\"hint\">estrutura</span>}}.",
+                  "Back Extra": "Teste dry-run via Action. Nao deve criar card."
+                },
+                "tags": [
+                  "GPT"
+                ],
+                "allow_duplicate": false,
+                "dry_run": true,
+                "requested_by": "gpt",
+                "reason": "Criar cloze via wrapper simples"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Operacao criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "operation": {
+                      "type": "object"
+                    },
+                    "operation_id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Payload invalido"
+          },
+          "401": {
+            "description": "Token ausente ou invalido"
+          }
+        },
+        "security": [
+          {
+            "TaggingToken": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "TaggingToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Tagging-Token"
+      }
+    }
+  }
+}

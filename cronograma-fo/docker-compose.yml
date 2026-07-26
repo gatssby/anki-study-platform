@@ -1,0 +1,13 @@
+services:
+  cronograma-fo:
+    build:
+      context: .
+    container_name: cronograma-fo
+    restart: unless-stopped
+    environment:
+      - CRONOGRAMA_DB_PATH=/app/data/cronograma.db
+    ports:
+      - "${CRONOGRAMA_PORT:-18000}:8000"
+    volumes:
+      - ./data:/app/data
+      - ./imports:/app/imports:ro

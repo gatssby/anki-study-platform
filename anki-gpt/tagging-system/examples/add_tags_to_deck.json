@@ -1,0 +1,15 @@
+{
+  "operation_type": "add_tags",
+  "confirmed_by_user": true,
+  "confirmation_message_id": "chatcmpl-confirm-2026-04-17-001",
+  "tags": [
+    "prio:alta",
+    "avaliar"
+  ],
+  "target": {
+    "type": "deck",
+    "deck": "Federal Online 2026::Biologia::Biologia I::01. Bioquímica"
+  },
+  "reason": "Usuario confirmou marcar todo o deck como prioridade alta para revisao."
+}
+

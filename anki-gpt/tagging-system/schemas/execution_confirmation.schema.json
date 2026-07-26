@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaggingExecutionConfirmationRequest",
+  "type": "object",
+  "required": [
+    "operation_id",
+    "status"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "operation_id": {
+      "type": "string",
+      "pattern": "^tagop-"
+    },
+    "status": {
+      "enum": [
+        "applied",
+        "partially_applied",
+        "failed"
+      ]
+    },
+    "addon_profile": {
+      "type": "string"
+    },
+    "affected_note_ids": {
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "uniqueItems": true
+    },
+    "affected_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  }
+}

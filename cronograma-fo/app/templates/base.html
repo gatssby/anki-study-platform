@@ -1,0 +1,120 @@
+{% from "components/ui.html" import icon %}
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Cronograma{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}?v=20260316" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tabler/tabler.min.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+    {% block styles %}{% endblock %}
+    {% block head_scripts %}{% endblock %}
+  </head>
+  <body class="{% block body_class %}app-page{% endblock %}">
+    <a class="app-skip-link" href="#main-content">Pular para o conteúdo</a>
+
+    <header class="app-header">
+      <div class="app-header__inner">
+        <a class="app-brand" href="{{ url_for('dashboard') }}" aria-label="Cronograma, página inicial">
+          <span class="app-brand__mark" aria-hidden="true">C</span>
+          <span>Cronograma</span>
+        </a>
+
+        <nav class="app-nav" aria-label="Navegação principal">
+          <a class="app-nav__link {{ 'is-active' if active_page == 'dashboard' else '' }}" href="{{ url_for('dashboard') }}" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>
+            {{ icon('layout-dashboard') }}<span>Dashboard</span>
+          </a>
+          <a class="app-nav__link {{ 'is-active' if active_page == 'database' else '' }}" href="{{ url_for('database_view') }}" {% if active_page == 'database' %}aria-current="page"{% endif %}>
+            {{ icon('database') }}<span>Base</span>
+          </a>
+          <a class="app-nav__link {{ 'is-active' if active_page == 'reprogramming' else '' }}" href="{{ url_for('reprogramming_view') }}" {% if active_page == 'reprogramming' %}aria-current="page"{% endif %}>
+            {{ icon('calendar-cog') }}<span>Reprogramação</span>
+          </a>
+          <a class="app-nav__link {{ 'is-active' if active_page == 'questions' else '' }}" href="{{ url_for('review_questions_home') }}" {% if active_page == 'questions' %}aria-current="page"{% endif %}>
+            {{ icon('cards') }}<span>Questões</span>
+          </a>
+        </nav>
+
+        <a class="app-header__backup app-btn app-btn--secondary" href="{{ url_for('backup_download') }}">
+          {{ icon('download') }}<span>Backup</span>
+        </a>
+
+        <button
+          class="app-menu-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="app-mobile-menu"
+          aria-label="Abrir menu principal"
+          data-app-menu-button
+        >
+          <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+        </button>
+
+        <nav id="app-mobile-menu" class="app-mobile-menu" aria-label="Menu principal" data-app-mobile-menu hidden>
+          <a href="{{ url_for('dashboard') }}" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>{{ icon('layout-dashboard') }}Dashboard</a>
+          <a href="{{ url_for('database_view') }}" {% if active_page == 'database' %}aria-current="page"{% endif %}>{{ icon('database') }}Base</a>
+          <a href="{{ url_for('reprogramming_view') }}" {% if active_page == 'reprogramming' %}aria-current="page"{% endif %}>{{ icon('calendar-cog') }}Reprogramação</a>
+          <a href="{{ url_for('review_questions_home') }}" {% if active_page == 'questions' %}aria-current="page"{% endif %}>{{ icon('cards') }}Questões</a>
+          <a href="{{ url_for('backup_download') }}">{{ icon('download') }}Backup</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content" class="{% block main_class %}app-container{% endblock %}" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+    <script>
+      (function () {
+        var button = document.querySelector("[data-app-menu-button]");
+        var menu = document.querySelector("[data-app-mobile-menu]");
+        if (!button || !menu) return;
+
+        function closeMenu(restoreFocus) {
+          menu.hidden = true;
+          button.setAttribute("aria-expanded", "false");
+          button.setAttribute("aria-label", "Abrir menu principal");
+          if (restoreFocus) button.focus();
+        }
+
+        button.addEventListener("click", function () {
+          var opening = menu.hidden;
+          menu.hidden = !opening;
+          button.setAttribute("aria-expanded", String(opening));
+          button.setAttribute("aria-label", opening ? "Fechar menu principal" : "Abrir menu principal");
+          if (opening) {
+            var firstLink = menu.querySelector("a");
+            if (firstLink) firstLink.focus();
+          }
+        });
+
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && !menu.hidden) {
+            event.preventDefault();
+            closeMenu(true);
+          }
+        });
+
+        document.addEventListener("click", function (event) {
+          if (!menu.hidden && !menu.contains(event.target) && !button.contains(event.target)) closeMenu(false);
+        });
+
+        window.addEventListener("resize", function () {
+          if (window.innerWidth > 576 && !menu.hidden) closeMenu(false);
+        });
+
+        function syncExerciseDisclosures() {
+          var desktop = window.innerWidth > 576;
+          document.querySelectorAll(".exercise-meta-disclosure, .exercise-controls-disclosure").forEach(function (details) {
+            details.open = desktop;
+          });
+        }
+        syncExerciseDisclosures();
+        window.addEventListener("resize", syncExerciseDisclosures);
+      })();
+    </script>
+  </body>
+</html>
