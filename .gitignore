@@ -46,6 +46,7 @@
 **/transcricoes/
 **/sessions/
 **/logs/
+**/audits/
 **/backups/
 **/snapshots/
 **/generations/
