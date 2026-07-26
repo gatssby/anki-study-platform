@@ -8,6 +8,16 @@ services:
       - CRONOGRAMA_DB_PATH=/app/data/cronograma.db
     ports:
       - "${CRONOGRAMA_PORT:-18000}:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5).read(1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./data:/app/data
       - ./imports:/app/imports:ro
