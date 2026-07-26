@@ -1,6 +1,7 @@
 name: Cronograma FO
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "apps/cronograma-fo/**"
