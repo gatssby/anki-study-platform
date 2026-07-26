@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-/opt/cronograma-fo}"
 MATERIALS_DIR="${MATERIALS_DIR:-/home/ubuntu/anki-gpt-sync}"
+PYTHON_BIN="${CRONOGRAMA_PYTHON:-$PROJECT_DIR/.venv/bin/python}"
 DB_PATH="${DB_PATH:-$PROJECT_DIR/data/cronograma.db}"
 STATE_DIR="${STATE_DIR:-$PROJECT_DIR/state/federal_online}"
 CRONOGRAMA_STATE_DIR="$STATE_DIR/cronograma_fo"
@@ -140,6 +141,7 @@ audit_environment() {
   log "refresh_index=$REFRESH_INDEX"
   log "max_index_age_hours=$MAX_INDEX_AGE_HOURS"
   log "index_timeout=$INDEX_TIMEOUT"
+  log "python_bin=$PYTHON_BIN"
 
   log "crontab atual:"
   crontab -l || true
@@ -170,8 +172,9 @@ audit_environment() {
   fi
 
   require_file "$DB_PATH" "Banco cronograma"
+  [ -x "$PYTHON_BIN" ] || die "Python isolado nao encontrado ou nao executavel: $PYTHON_BIN"
 
-  python3 - "$MAX_INDEX_AGE_HOURS" <<'PY'
+  "$PYTHON_BIN" - "$MAX_INDEX_AGE_HOURS" <<'PY'
 import sys
 
 try:
@@ -191,14 +194,14 @@ backup_db() {
   mkdir -p "$BACKUP_DIR"
   backup_path="$BACKUP_DIR/cronograma-${label}-${timestamp}-$$.db"
   run_step "backup_db_${label}" \
-    python3 "$PROJECT_DIR/scripts/sqlite_safe_backup.py" backup \
+    "$PYTHON_BIN" "$PROJECT_DIR/scripts/sqlite_safe_backup.py" backup \
       --source "$DB_PATH" \
       --output "$backup_path"
   log "backup_db label=$label path=$backup_path"
 }
 
 index_is_valid() {
-  python3 - "$INDEX_JSON" <<'PY' >/dev/null 2>&1
+  "$PYTHON_BIN" - "$INDEX_JSON" <<'PY' >/dev/null 2>&1
 import json
 import sys
 from pathlib import Path
@@ -214,7 +217,7 @@ PY
 }
 
 index_age_hours() {
-  python3 - "$INDEX_JSON" <<'PY'
+  "$PYTHON_BIN" - "$INDEX_JSON" <<'PY'
 import time
 import sys
 from pathlib import Path
@@ -226,7 +229,7 @@ PY
 }
 
 index_is_older_than_limit() {
-  python3 - "$INDEX_JSON" "$MAX_INDEX_AGE_HOURS" <<'PY' >/dev/null 2>&1
+  "$PYTHON_BIN" - "$INDEX_JSON" "$MAX_INDEX_AGE_HOURS" <<'PY' >/dev/null 2>&1
 import sys
 import time
 from pathlib import Path
@@ -265,7 +268,7 @@ collect_index() {
 
   if [ "$DRY_RUN" -eq 1 ]; then
     log "dry-run: coleta real do portal nao sera executada reason=$reason"
-    log "dry-run: seria executado: timeout $INDEX_TIMEOUT python3 scripts/fo_collect_aulas_index.py --no-resume --path-filter 'Aulas Gerais'"
+    log "dry-run: seria executado: timeout $INDEX_TIMEOUT $PYTHON_BIN scripts/fo_collect_aulas_index.py --no-resume --path-filter 'Aulas Gerais'"
     require_file "$INDEX_JSON" "Indice filtrado existente para dry-run"
     index_is_valid || die "Indice filtrado existente e invalido: $INDEX_JSON"
     return 0
@@ -276,7 +279,7 @@ collect_index() {
   set +e
   (
     cd "$PROJECT_DIR"
-    timeout "$INDEX_TIMEOUT" python3 scripts/fo_collect_aulas_index.py --no-resume --path-filter "Aulas Gerais"
+    timeout "$INDEX_TIMEOUT" "$PYTHON_BIN" scripts/fo_collect_aulas_index.py --no-resume --path-filter "Aulas Gerais"
   )
   local status=$?
   set -e
@@ -297,11 +300,11 @@ collect_index() {
 
 run_merge_dry_run() {
   local output_file="$CRONOGRAMA_STATE_DIR/fo_full_sync_merge_dry_run_${RUN_ID}.out"
-  log "inicio etapa=merge_dry_run cmd=python3 scripts/fo_merge_aulas_metadata.py --index-json $INDEX_JSON"
+  log "inicio etapa=merge_dry_run cmd=$PYTHON_BIN scripts/fo_merge_aulas_metadata.py --index-json $INDEX_JSON"
   set +e
   (
     cd "$PROJECT_DIR"
-    python3 scripts/fo_merge_aulas_metadata.py --index-json "$INDEX_JSON"
+    "$PYTHON_BIN" scripts/fo_merge_aulas_metadata.py --index-json "$INDEX_JSON"
   ) 2>&1 | tee "$output_file"
   local status=${PIPESTATUS[0]}
   set -e
@@ -333,7 +336,7 @@ run_merge_apply_if_allowed() {
   backup_db "pre-fo-merge"
   (
     cd "$PROJECT_DIR"
-    python3 scripts/fo_merge_aulas_metadata.py --index-json "$INDEX_JSON" --apply
+    "$PYTHON_BIN" scripts/fo_merge_aulas_metadata.py --index-json "$INDEX_JSON" --apply
   )
 }
 
@@ -341,20 +344,20 @@ run_adaptive_schedule() {
   if [ "$DRY_RUN" -eq 1 ]; then
     (
       cd "$PROJECT_DIR"
-      python3 scripts/generate_adaptive_schedule.py --dry-run
+      "$PYTHON_BIN" scripts/generate_adaptive_schedule.py --dry-run
     )
-    return 0
+    return
   fi
 
   backup_db "pre-adaptive"
   (
     cd "$PROJECT_DIR"
-    python3 scripts/generate_adaptive_schedule.py --apply
+    "$PYTHON_BIN" scripts/generate_adaptive_schedule.py --apply
   )
 }
 
 validate_schedule() {
-  python3 - "$DB_PATH" "$DRY_RUN" "$PROJECT_DIR" <<'PY'
+  "$PYTHON_BIN" - "$DB_PATH" "$DRY_RUN" "$PROJECT_DIR" <<'PY'
 from __future__ import annotations
 
 import sqlite3
