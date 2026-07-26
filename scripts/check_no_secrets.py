@@ -5,11 +5,26 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_NAMES = {"tagging_token.txt", ".env", "id_rsa", "id_ed25519"}
+FORBIDDEN_NAMES = {
+    "tagging_token.txt",
+    ".env",
+    "id_rsa",
+    "id_ed25519",
+    "storage_state.json",
+    "fo_storage_state.json",
+    "rclone.conf",
+    "network_log.json",
+}
 PATTERNS = {
     "private_key": re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "bearer_literal": re.compile(rb"Authorization\s*[:=]\s*[\"']?Bearer\s+[A-Za-z0-9._~-]{20,}", re.I),
     "token_literal": re.compile(rb"X-Tagging-Token\s*[:=]\s*[\"'][A-Za-z0-9._~-]{20,}[\"']", re.I),
+    "github_token": re.compile(rb"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
+    "openai_key": re.compile(rb"\bsk-[A-Za-z0-9_-]{20,}\b"),
+    "aws_access_key": re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
+    "jwt_literal": re.compile(
+        rb"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"
+    ),
 }
 
 

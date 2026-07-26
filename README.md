@@ -14,13 +14,16 @@ Esta migração preserva inicialmente os runtimes e os caminhos de produção:
 Dados persistentes, credenciais, sessões, mídia, transcrições, bancos, índices e
 uploads não pertencem ao Git. Cada componente continua com deploy independente.
 
-## Baseline importado
+## Estrutura
 
-- `anki-gpt/`: addon e conhecimento locais, backend efetivamente ativo na VPS,
-  ferramentas locais e testes artificiais;
-- `cronograma-fo/`: aplicação local, confirmada como equivalente à implantação
-  ativa, sem banco, sessão, materiais ou artefatos privados;
-- `contracts/`, `ops/`, `scripts/` e `tests/`: áreas de consolidação progressiva.
+- `apps/anki-gpt`: addon, ferramentas locais e GPT Knowledge;
+- `apps/cronograma-fo`: aplicação web e scripts compatíveis;
+- `services/anki-api`: backend e indexação Anki;
+- `jobs`: sincronização do portal, vídeos, transcrições e reprogramação;
+- `packages`: contratos FO, I/O seguro e contratos Anki;
+- `contracts`: OpenAPI, JSON Schema e fixtures artificiais;
+- `ops`: bundles, deploys e rollbacks por componente;
+- `tests`: compatibilidade entre produtores e consumidores.
 
-A arquitetura final, os comandos de validação e os runbooks de implantação
-ficam em `docs/`.
+Consulte `docs/ARCHITECTURE.md`, `docs/DEPENDENCIES.md` e os runbooks em
+`ops/`.
