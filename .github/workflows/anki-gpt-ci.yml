@@ -35,6 +35,6 @@ jobs:
       - run: bash -n services/anki-api/*.sh apps/anki-gpt/local-tools/*.sh scripts/*.sh
       - run: ruff check --select E9,F63,F7,F82 services/anki-api packages scripts tests
       - run: mypy --ignore-missing-imports --follow-imports=skip packages/safe-io/safe_io.py packages/fo-contracts/fo_contracts.py
-      - run: bandit -q -r services/anki-api packages
+      - run: bandit -q -lll -r services/anki-api packages
       - run: python scripts/check_no_secrets.py
       - run: python scripts/package_addon.py
