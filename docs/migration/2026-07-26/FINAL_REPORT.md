@@ -71,7 +71,8 @@ transcrições em seus diretórios existentes e addon dentro do Anki.
 9. `f5a524a` — `ci: fail security scan only on high severity`
 10. `c2caf90` — `fix: extend FO index collection window`
 11. `4ef498d` — `ops: validate only Cronograma runtime dependencies`
-12. o commit deste relatório será acrescentado ao final da janela.
+12. `51af8f9` — `docs: document architecture deployment and rollback`
+13. `HEAD` — finalização das evidências de produção deste relatório.
 
 Não houve force push. Os repositórios incompletos/ausentes dos diretórios
 originais não foram reutilizados.
@@ -251,6 +252,9 @@ GitHub Actions:
 - Cronograma FO + Docker build: aprovado;
 - Anki GPT: aprovado depois de ajustar o gate Bandit para bloquear achados
   altos e manter médios/baixos documentados.
+
+Os quatro workflows foram disparados manualmente no commit `51af8f9` depois do
+cutover e concluíram com sucesso.
 
 ## 10. Deploy, serviços e configuração
 
