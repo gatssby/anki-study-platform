@@ -4,10 +4,11 @@ import json
 import re
 from datetime import datetime
 
-SESSION_FILE = Path("/Users/gatsby/Workspace/Cronograma FO/work/fo_bridge/session/fo_storage_state.json")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SESSION_FILE = PROJECT_ROOT / "work/fo_bridge/session/fo_storage_state.json"
 COURSE_URL = "https://www.federalonline.com.br/portal/curso-aula/produto-pacote/94d484df6ded73508f3ed1e39dd8d90e/extensivo-ufpr-2026"
 
-OUT_DIR = Path("/Users/gatsby/Workspace/Anki GPT/files/misc/fo_probe")
+OUT_DIR = PROJECT_ROOT / "work/fo_bridge/output/fo_probe"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 PATH_PARTS = ["Aulas Gerais", "Biologia", "Biologia I"]

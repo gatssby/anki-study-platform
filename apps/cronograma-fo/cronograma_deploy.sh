@@ -172,7 +172,7 @@ check_local_prerequisites() {
   [ -f "$SQLITE_BACKUP_TOOL" ] || die "Utilitário de snapshot não encontrado: $SQLITE_BACKUP_TOOL"
   [ -f "$DB_COMPARE_TOOL" ] || die "Comparador de estado não encontrado: $DB_COMPARE_TOOL"
 
-  if [ "$(cd "$PROJECT_DIR" && pwd)" != "/Users/gatsby/Workspace/Cronograma FO" ]; then
+  if [ "$(cd "$PROJECT_DIR" && pwd)" != "/Users/gatsby/Workspace/Anki Study Platform/apps/cronograma-fo" ]; then
     warn "Raiz detectada diferente do caminho esperado: $PROJECT_DIR"
   fi
 

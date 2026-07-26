@@ -2,9 +2,10 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 import base64
 
-SESSION_FILE = Path("/Users/gatsby/Workspace/Cronograma FO/work/fo_bridge/session/fo_storage_state.json")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SESSION_FILE = PROJECT_ROOT / "work/fo_bridge/session/fo_storage_state.json"
 TARGET_URL = "https://www.federalonline.com.br/portal/curso-aula/produto-pacote/94d484df6ded73508f3ed1e39dd8d90e/extensivo-ufpr-2026"
-OUT_DIR = Path("/Users/gatsby/Workspace/Cronograma FO/work/fo_bridge/output/test_downloads")
+OUT_DIR = PROJECT_ROOT / "work/fo_bridge/output/test_downloads"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SUBJECT_NAME = "Física I"

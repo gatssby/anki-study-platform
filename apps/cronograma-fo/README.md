@@ -310,7 +310,7 @@ Os wrappers locais ficam no projeto e podem ser apontados para o seu `PATH` via 
 Se precisar reinstalar manualmente:
 
 ```bash
-ln -sf "/Users/gatsby/Workspace/Cronograma FO/cronograma_deploy" ~/bin/cronograma_deploy
+ln -sf "/Users/gatsby/Workspace/Anki Study Platform/apps/cronograma-fo/cronograma_deploy" ~/bin/cronograma_deploy
 ```
 
 Não há suporte funcional a `--reset-db`. O wrapper legado `cronograma_deploy_reset_db` não faz parte do fluxo suportado e não deve ser usado.
