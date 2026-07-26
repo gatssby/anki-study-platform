@@ -11,13 +11,6 @@
     }
   ],
   "components": {
-    "securitySchemes": {
-      "TaggingToken": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-Tagging-Token"
-      }
-    },
     "schemas": {
       "ExecutionMode": {
         "type": "string",
@@ -28,6 +21,14 @@
       "ExecutionModeCompatibility": {
         "type": "object",
         "description": "Quando execution_mode e dry_run coexistem, direct exige false e preview exige true.",
+        "properties": {
+          "execution_mode": {"$ref": "#/components/schemas/ExecutionMode"},
+          "dry_run": {
+            "type": "boolean",
+            "default": false,
+            "description": "Compatibilidade: false=direct, true=preview."
+          }
+        },
         "allOf": [
           {
             "if": {"properties": {"execution_mode": {"const": "direct"}}, "required": ["execution_mode"]},
@@ -55,6 +56,7 @@
           "note_id": {"type": "integer"},
           "fields": {
             "type": "object",
+            "properties": {},
             "minProperties": 1,
             "additionalProperties": {"type": "string"}
           },
@@ -117,6 +119,32 @@
           {"required": ["note_updates_json"], "not": {"required": ["dry_run_operation_id"]}},
           {"required": ["dry_run_operation_id"], "not": {"required": ["note_updates_json"]}}
         ]
+      },
+      "ReorderOrderCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["deck", "ordered_note_ids"],
+        "properties": {
+          "deck": {"type": "string", "minLength": 1},
+          "ordered_note_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "integer"}
+          },
+          "expected_eligible_card_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "integer"}
+          },
+          "target_created_column": {
+            "type": "string",
+            "enum": ["note"],
+            "default": "note"
+          },
+          "requested_by": {"type": "string", "default": "gpt"},
+          "reason": {"type": "string"}
+        }
       }
     }
   },
@@ -177,11 +205,6 @@
               "default": 0
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -202,12 +225,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ]
+        }
       }
     },
     "/cards/by-deck": {
@@ -262,11 +280,6 @@
               "type": "integer",
               "default": 0
             }
-          }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
           }
         ]
       }
@@ -348,11 +361,6 @@
               "default": 0
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -432,11 +440,6 @@
               "default": 100
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -509,11 +512,6 @@
             "schema": {
               "type": "string"
             }
-          }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
           }
         ]
       }
@@ -604,11 +602,6 @@
             },
             "description": "Limite de bytes do lote; default vem de ANKI_GPT_MAX_BATCH_BYTES."
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -690,12 +683,7 @@
             }
           }
         ],
-        "description": "Retorna lista de materiais FO por metadados. O parametro q usa busca tolerante por acentos, pontuacao e tokens; nao extrai texto do PDF.",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ]
+        "description": "Retorna lista de materiais FO por metadados. O parametro q usa busca tolerante por acentos, pontuacao e tokens; nao extrai texto do PDF."
       }
     },
     "/fo/material": {
@@ -766,12 +754,7 @@
             "description": "Limite maximo de caracteres retornados na extracao."
           }
         ],
-        "description": "Sem extract_text, retorna metadados do material. Com extract_text=true, retorna JSON com material, text e extraction para paginas do PDF; use esta forma quando o GPT precisa ler conteudo sem baixar binario.",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ]
+        "description": "Sem extract_text, retorna metadados do material. Com extract_text=true, retorna JSON com material, text e extraction para paginas do PDF; use esta forma quando o GPT precisa ler conteudo sem baixar binario."
       }
     },
     "/fo/transcripts": {
@@ -870,11 +853,6 @@
               "default": 0
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -946,11 +924,6 @@
               "default": 20000
             },
             "description": "Número máximo de caracteres de texto a retornar."
-          }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
           }
         ]
       }
@@ -1024,11 +997,6 @@
               "default": 0
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -1079,11 +1047,6 @@
               "default": 0
             }
           }
-        ],
-        "security": [
-          {
-            "TaggingToken": []
-          }
         ]
       }
     },
@@ -1095,11 +1058,6 @@
         "deprecated": true,
         "x-successor-method": "POST",
         "x-successor-path": "/organization/reorder-order",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ],
         "parameters": [
           {
             "name": "deck",
@@ -1178,10 +1136,13 @@
       "post": {
         "summary": "Cria order_id por POST",
         "operationId": "createReorderOrderPost",
-        "security": [{"TaggingToken": []}],
         "requestBody": {
           "required": true,
-          "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ReorderOrderCreateRequest"}
+            }
+          }
         },
         "responses": {
           "200": {"description": "Resposta JSON"},
@@ -1198,11 +1159,6 @@
         "deprecated": true,
         "x-successor-method": "POST",
         "x-successor-path": "/organization/reorder-cards-by-material",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ],
         "parameters": [
           {
             "name": "deck",
@@ -1332,7 +1288,6 @@
         "summary": "Cria operacao reorder por POST",
         "description": "Aplicacao real por padrao. Envie execution_mode=preview somente apos pedido explicito de previa.",
         "operationId": "createReorderCardsByMaterialPost",
-        "security": [{"TaggingToken": []}],
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {
@@ -1360,11 +1315,6 @@
         "deprecated": true,
         "x-successor-method": "POST",
         "x-successor-path": "/organization/note-field-updates-create",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ],
         "parameters": [
           {
             "name": "note_updates_json",
@@ -1419,7 +1369,6 @@
         "summary": "Cria updates_id por POST",
         "description": "Envie note_updates_json com precondicoes para o fluxo direct padrao. Se o usuario pediu preview e depois decidiu aplicar, dry_run_operation_id cria um updates_id condicionado pelo fluxo legado.",
         "operationId": "createNoteFieldUpdatesPost",
-        "security": [{"TaggingToken": []}],
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {"$ref": "#/components/schemas/NoteFieldUpdatesCreateRequest"}}}
@@ -1439,11 +1388,6 @@
         "deprecated": true,
         "x-successor-method": "POST",
         "x-successor-path": "/organization/update-note-fields-create",
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ],
         "parameters": [
           {
             "name": "updates_id",
@@ -1506,7 +1450,6 @@
         "summary": "Cria update_note_fields por POST",
         "description": "Cria aplicacao real por padrao. O updates_id de direct deve conter expected_content_hash por item. Use execution_mode=preview somente se o usuario pedir; dry_run_operation_id permanece para promocao legado.",
         "operationId": "createUpdateNoteFieldsPost",
-        "security": [{"TaggingToken": []}],
         "requestBody": {
           "required": true,
           "content": {"application/json": {"schema": {
@@ -1590,12 +1533,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ]
+        }
       }
     },
     "/ufpr/obras/trecho": {
@@ -1657,12 +1595,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "TaggingToken": []
-          }
-        ]
+        }
       }
     }
   }
