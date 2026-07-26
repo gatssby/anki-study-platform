@@ -1,0 +1,3 @@
+# Documentation-only manifest.
+# The addon uses Python/PyQt/Anki modules supplied by the Anki runtime and
+# vendored standard-library-only helpers. Do not pip-install into Anki.

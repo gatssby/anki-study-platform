@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/anki-study-platform/aulas-index.schema.json",
+  "title": "FO aulas_index.tsv row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "area", "portal_root", "portal_subject", "disciplina", "ordem",
+    "nome_real_aula", "titulo_original", "duracao_segundos", "duracao_texto",
+    "media_id", "item_id", "media_type", "course_url", "source_ref",
+    "captured_at", "status", "error", "video_stream_url"
+  ],
+  "properties": {
+    "area": {"type": "string"},
+    "portal_root": {"type": "string"},
+    "portal_subject": {"type": "string"},
+    "disciplina": {"type": "string"},
+    "ordem": {"type": "string", "pattern": "^(|[0-9]+)$"},
+    "nome_real_aula": {"type": "string"},
+    "titulo_original": {"type": "string"},
+    "duracao_segundos": {"type": "string", "pattern": "^(|[0-9]+)$"},
+    "duracao_texto": {"type": "string"},
+    "media_id": {"type": "string"},
+    "item_id": {"type": "string"},
+    "media_type": {"type": "string"},
+    "course_url": {"type": "string"},
+    "source_ref": {"type": "string", "minLength": 1},
+    "captured_at": {"type": "string"},
+    "status": {"type": "string", "minLength": 1},
+    "error": {"type": "string"},
+    "video_stream_url": {"type": "string"}
+  },
+  "x-contract-version": 1,
+  "x-tsv-columns": [
+    "area", "portal_root", "portal_subject", "disciplina", "ordem",
+    "nome_real_aula", "titulo_original", "duracao_segundos", "duracao_texto",
+    "media_id", "item_id", "media_type", "course_url", "source_ref",
+    "captured_at", "status", "error", "video_stream_url"
+  ]
+}

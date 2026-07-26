@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/anki-study-platform/fo-material-manifest.schema.json",
+  "title": "FO material manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "count", "success_count", "error_count", "items"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "generated_at": {"type": "string"},
+    "count": {"type": "integer", "minimum": 0},
+    "success_count": {"type": "integer", "minimum": 0},
+    "error_count": {"type": "integer", "minimum": 0},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target_key", "group", "portal_subject", "output_subject",
+          "material_type", "status", "file_name", "relative_path", "sha256",
+          "byte_size", "source_url", "source_label", "started_at",
+          "finished_at", "error"
+        ],
+        "properties": {
+          "target_key": {"type": "string"},
+          "group": {"type": "string"},
+          "portal_subject": {"type": "string"},
+          "output_subject": {"type": "string"},
+          "material_type": {"type": "string"},
+          "status": {"type": "string"},
+          "file_name": {"type": "string"},
+          "relative_path": {"type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"},
+          "sha256": {"type": "string"},
+          "byte_size": {"type": "integer", "minimum": 0},
+          "source_url": {"type": "string"},
+          "source_label": {"type": "string"},
+          "started_at": {"type": "string"},
+          "finished_at": {"type": "string"},
+          "error": {"type": "string"}
+        }
+      }
+    }
+  }
+}

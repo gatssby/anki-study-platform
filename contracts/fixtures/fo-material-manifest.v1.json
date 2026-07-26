@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-01-01T00:00:00Z",
+  "count": 1,
+  "success_count": 1,
+  "error_count": 0,
+  "items": [
+    {
+      "target_key": "Matemática I - Federal | Resumo",
+      "group": "Matemática",
+      "portal_subject": "Matemática I - Federal",
+      "output_subject": "Matemática I - Federal",
+      "material_type": "Resumo",
+      "status": "ok",
+      "file_name": "fixture.pdf",
+      "relative_path": "Matemática/fixture.pdf",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "byte_size": 128,
+      "source_url": "https://example.invalid/material/1",
+      "source_label": "fixture",
+      "started_at": "2026-01-01T00:00:00Z",
+      "finished_at": "2026-01-01T00:00:01Z",
+      "error": ""
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+area	portal_root	portal_subject	disciplina	ordem	nome_real_aula	titulo_original	duracao_segundos	duracao_texto	media_id	item_id	media_type	course_url	source_ref	captured_at	status	error	video_stream_url
+Exatas	Matemática	Matemática I - Federal	Matemática I	1	Funções	Funções - introdução	1800	30 min	media-artificial-1	item-artificial-1	video	https://example.invalid/curso	fixture://aula/1	2026-01-01T00:00:00Z	ok		https://example.invalid/video/1

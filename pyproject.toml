@@ -5,7 +5,7 @@ description = "Private modular monorepo for Anki GPT and Cronograma FO"
 requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "anki-gpt/tests", "cronograma-fo/tests"]
+testpaths = ["tests", "apps/anki-gpt/tests", "apps/cronograma-fo/tests"]
 addopts = "-ra"
 
 [tool.ruff]

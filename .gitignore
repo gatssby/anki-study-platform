@@ -48,16 +48,19 @@
 **/logs/
 **/backups/
 **/snapshots/
+**/generations/
 **/indexes/
 **/indices/
 **/imports/
 **/*.db
 **/*.db-*
+**/*.sqlite*
 **/*.sqlite
 **/*.sqlite-*
 **/*.sqlite3
 **/*.log
 **/*.log.*
+**/*.gz
 **/network_log.json
 **/*.har
 

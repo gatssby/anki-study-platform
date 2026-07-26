@@ -1,0 +1,2 @@
+# Runtime dependency used by PDF extraction when that optional endpoint is called.
+pypdf==6.10.2
