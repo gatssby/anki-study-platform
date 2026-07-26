@@ -1,0 +1,39 @@
+name: Anki GPT
+
+on:
+  push:
+    paths:
+      - "apps/anki-gpt/**"
+      - "services/anki-api/**"
+      - "packages/anki-contracts/**"
+      - "packages/safe-io/**"
+      - "contracts/openapi/**"
+      - "scripts/**"
+      - ".github/workflows/anki-gpt-ci.yml"
+  pull_request:
+    paths:
+      - "apps/anki-gpt/**"
+      - "services/anki-api/**"
+      - "packages/anki-contracts/**"
+      - "packages/safe-io/**"
+      - "contracts/openapi/**"
+      - "scripts/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m py_compile services/anki-api/*.py apps/anki-gpt/addon-local/*.py
+      - run: python -m pytest -q apps/anki-gpt/tests tests
+      - run: python scripts/validate_openapi.py
+      - run: bash -n services/anki-api/*.sh apps/anki-gpt/local-tools/*.sh scripts/*.sh
+      - run: ruff check --select E9,F63,F7,F82 services/anki-api packages scripts tests
+      - run: mypy --ignore-missing-imports --follow-imports=skip packages/safe-io/safe_io.py packages/fo-contracts/fo_contracts.py
+      - run: bandit -q -r services/anki-api packages
+      - run: python scripts/check_no_secrets.py
+      - run: python scripts/package_addon.py

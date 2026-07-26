@@ -1,0 +1,31 @@
+name: Cronograma FO
+
+on:
+  push:
+    paths:
+      - "apps/cronograma-fo/**"
+      - "jobs/**"
+      - "packages/fo-contracts/**"
+      - "packages/safe-io/**"
+      - ".github/workflows/cronograma-ci.yml"
+  pull_request:
+    paths:
+      - "apps/cronograma-fo/**"
+      - "jobs/**"
+      - "packages/fo-contracts/**"
+      - "packages/safe-io/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r apps/cronograma-fo/requirements.txt pytest==8.4.1
+      - working-directory: apps/cronograma-fo
+        run: python -m pytest -q tests
+      - run: node apps/cronograma-fo/tests/dashboard_scroll_state_test.js
+      - run: bash scripts/build_component_bundle.sh cronograma-fo
+      - run: docker build -t cronograma-fo-ci dist/cronograma-fo

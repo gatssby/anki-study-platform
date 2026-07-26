@@ -1,0 +1,30 @@
+name: Contracts
+
+on:
+  push:
+    paths:
+      - "contracts/**"
+      - "packages/fo-contracts/**"
+      - "jobs/fo-portal-sync/**"
+      - "apps/cronograma-fo/scripts/fo_collect_aulas_index.py"
+      - "services/anki-api/query_api.py"
+      - ".github/workflows/contracts-ci.yml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - "packages/fo-contracts/**"
+      - "jobs/fo-portal-sync/**"
+      - "apps/cronograma-fo/scripts/fo_collect_aulas_index.py"
+      - "services/anki-api/query_api.py"
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest==8.4.1 openapi-spec-validator==0.7.2
+      - run: python -m pytest -q tests/test_fo_contracts.py
+      - run: python scripts/validate_openapi.py
