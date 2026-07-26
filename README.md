@@ -26,4 +26,5 @@ uploads não pertencem ao Git. Cada componente continua com deploy independente.
 - `tests`: compatibilidade entre produtores e consumidores.
 
 Consulte `docs/ARCHITECTURE.md`, `docs/DEPENDENCIES.md` e os runbooks em
-`ops/`.
+`ops/`. O resultado auditável do cutover inicial está em
+`docs/migration/2026-07-26/FINAL_REPORT.md`.
