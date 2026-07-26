@@ -24,6 +24,9 @@ case "$COMPONENT" in
   anki-api)
     mkdir -p "$OUTPUT_DIR/scripts"
     rsync -aL "${COMMON_EXCLUDES[@]}" "$ROOT/services/anki-api/" "$OUTPUT_DIR/scripts/"
+    install -m 0644 \
+      "$ROOT/contracts/openapi/gpt-action-compact.openapi.json" \
+      "$OUTPUT_DIR/scripts/gpt-action-compact.openapi.json"
     ;;
   cronograma-fo)
     rsync -aL "${COMMON_EXCLUDES[@]}" \

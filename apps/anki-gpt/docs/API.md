@@ -1,6 +1,15 @@
 # API
 
-API 3.0.0, OpenAPI 3.1.0. Schema canônico público: `/openapi.json`; schema GPT compacto: `gpt-knowledge/schema gpt.json`.
+API 3.0.0, OpenAPI 3.1.0. Schema completo público: `/openapi.json`; fonte
+canônica do schema GPT compacto:
+`contracts/openapi/gpt-action-compact.openapi.json`, exposta somente para
+importação por GET em
+`https://gatsby-anki.137.131.191.66.nip.io/openapi/gpt.json`.
+
+`gpt-knowledge/schema gpt.json` é um symlink para a fonte canônica. A URL do
+compacto não exige autenticação e usa `no-store`; as operações descritas
+continuam protegidas no runtime e a autenticação da Action é configurada
+separadamente no GPT Builder.
 
 Operações organization novas usam schema 3 com `execution_mode: direct|preview`; o default do backend é `direct`. `dry_run` continua no contrato como compatibilidade e combinações incompatíveis são rejeitadas. O reporte técnico do add-on usa `/organization/operations/result`; `/confirm` é alias legado.
 

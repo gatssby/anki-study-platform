@@ -35,6 +35,7 @@ PUBLIC_READ_PATHS = {
     "/health",
     "/version",
     "/openapi.json",
+    "/openapi/gpt.json",
     "/anki_gpt_full_schema_30ops_stable.openapi.json",
     "/gpt_builder_organization_wrappers.openapi.json",
 }
@@ -68,6 +69,7 @@ SNAPSHOT_STATUS_PATH = STATE_DIR / "snapshot_status.json"
 NOTE_MEDIA_INDEX_PATH = STATE_DIR / "note_media_index.json"
 OPENAPI_SCHEMA_PATH = SCRIPTS_DIR / "anki_gpt_full_schema_30ops_stable.openapi.json"
 ORGANIZATION_WRAPPER_SCHEMA_PATH = SCRIPTS_DIR / "gpt_builder_organization_wrappers.openapi.json"
+GPT_COMPACT_SCHEMA_PATH = SCRIPTS_DIR / "gpt-action-compact.openapi.json"
 MEDIA_DIR = STATE_DIR / "media"
 FO_STATE_DIR = STATE_DIR / "federal_online"
 FO_MATERIALS_DIR = FO_STATE_DIR / "materiais_fo"
@@ -894,12 +896,14 @@ def publish_full_snapshot_payload(payload, request_path="/sync/full"):
     }
 
 
-def send_file(handler, path: Path):
+def send_file(handler, path: Path, *, content_type=None, headers=None):
     if not path.exists() or not path.is_file():
         send_json(handler, {"error": "media_not_found"}, status=404)
         return
 
-    ctype, _ = mimetypes.guess_type(str(path))
+    ctype = content_type
+    if not ctype:
+        ctype, _ = mimetypes.guess_type(str(path))
     if not ctype:
         ctype = "application/octet-stream"
 
@@ -907,6 +911,8 @@ def send_file(handler, path: Path):
     handler.send_response(200)
     handler.send_header("Content-Type", ctype)
     handler.send_header("Content-Length", str(len(data)))
+    for name, value in (headers or {}).items():
+        handler.send_header(str(name), str(value))
     handler.end_headers()
     handler.wfile.write(data)
 
@@ -5752,6 +5758,19 @@ class Handler(BaseHTTPRequestHandler):
 
             if path == "/gpt_builder_organization_wrappers.openapi.json":
                 return send_file(self, ORGANIZATION_WRAPPER_SCHEMA_PATH)
+
+            if path == "/openapi/gpt.json":
+                return send_file(
+                    self,
+                    GPT_COMPACT_SCHEMA_PATH,
+                    content_type="application/json; charset=utf-8",
+                    headers={
+                        "Cache-Control": "no-store, max-age=0",
+                        "Pragma": "no-cache",
+                        "Expires": "0",
+                        "X-Content-Type-Options": "nosniff",
+                    },
+                )
 
             derived = load_derived_request_state()
             note_media_index = derived["note_media_index"]
