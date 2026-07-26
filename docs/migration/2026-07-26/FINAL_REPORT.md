@@ -326,12 +326,19 @@ O pipeline final criou ainda:
 - backup privado do índice anterior e do checkpoint após timeout em
   `/home/ubuntu/migration-backups/anki-study-platform-20260726T190824Z/pre-fo-index-promotion`.
 
-O symlink atual do addon continua registrado e não foi alterado enquanto o
-Anki principal estava aberto:
+O target anterior do addon foi registrado antes do cutover:
 
 ```text
 /Users/gatsby/Library/Application Support/Anki2/addons21/anki_gpt_sync
 -> /Users/gatsby/Workspace/Anki GPT/addon-local
+```
+
+Depois que o Anki foi fechado e os hashes/bundle foram revalidados, o symlink
+foi atualizado para:
+
+```text
+/Users/gatsby/Library/Application Support/Anki2/addons21/anki_gpt_sync
+-> /Users/gatsby/Workspace/Anki Study Platform/apps/anki-gpt/addon-local
 ```
 
 ## 12. Validação end-to-end
@@ -402,7 +409,8 @@ pois restaurar o anterior descartaria atividade legítima do Anki.
 - evidência anterior do mesmo código no perfil descartável
   `Anki GPT Validation`: 16/16 testes e probe de main thread aprovado;
 - a coleção principal não foi alterada;
-- ativação do path do monorepo aguarda reinício manual seguro do Anki.
+- symlink atualizado para o monorepo com o Anki fechado;
+- carregamento do novo path aguarda apenas o reinício manual do Anki.
 
 ## 13. Preservação de dados
 
@@ -423,16 +431,23 @@ Confirmado:
 
 ## 14. Passos manuais restantes
 
-1. Fechar o Anki principal após concluir qualquer operação em andamento.
-2. Trocar de forma atômica o symlink do addon para:
-   `/Users/gatsby/Workspace/Anki Study Platform/apps/anki-gpt/addon-local`.
-3. Abrir primeiro o perfil descartável `Anki GPT Validation`, executar o
+1. Abrir primeiro o perfil descartável `Anki GPT Validation`, executar o
    harness e confirmar todos os testes.
-4. Só então reiniciar no perfil principal; não executar operações de escrita
+
+   No console de debug do Anki, com esse perfil aberto:
+
+   ```python
+   import importlib
+   addon = importlib.import_module("anki_gpt_sync")
+   harness = importlib.import_module("anki_gpt_sync.validation_harness")
+   harness.run_disposable_validation(addon, addon.organization_module)
+   ```
+
+2. Só então reiniciar no perfil principal; não executar operações de escrita
    durante o primeiro smoke test.
-5. Autorizar o novo repositório privado no conector GitHub do Codex/ChatGPT.
-6. Atualizar manualmente o GPT Builder com os contratos/Knowledge canônicos.
-7. Se workflows futuros precisarem de deploy, cadastrar no GitHub somente os
+3. Autorizar o novo repositório privado no conector GitHub do Codex/ChatGPT.
+4. Atualizar manualmente o GPT Builder com os contratos/Knowledge canônicos.
+5. Se workflows futuros precisarem de deploy, cadastrar no GitHub somente os
    secrets documentados; nenhum valor foi copiado nesta migração.
 
 Rollback do addon: com o Anki fechado, restaurar o symlink para
