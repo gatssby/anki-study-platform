@@ -29,3 +29,7 @@ Somente nomes; nenhum valor é versionado.
 `REMOTE_APP_URL`, `REMOTE_BACKUP_DIR`, `REMOTE_DB`,
 `REMOTE_DEPLOY_LIB_ONLY`, `REMOTE_DIR`, `REMOTE_HOST`,
 `REMOTE_UPLOADS_ROOT`, `RUN_ID`, `STATE_DIR`.
+
+`INDEX_TIMEOUT` aceita durações do comando GNU `timeout`. O default suportado
+é `3h`, dimensionado para uma coleta integral do portal; valores menores podem
+acionar o fallback para o último índice promovido válido.
