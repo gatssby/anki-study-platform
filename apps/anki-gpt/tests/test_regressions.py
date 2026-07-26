@@ -486,6 +486,72 @@ def test_gpt_openapi_documents_concrete_note_updates_json_contract():
         }))
 
 
+def test_compact_openapi_is_gpt_builder_compatible_and_preserves_23_operations():
+    schema_path = REPO_ROOT / "contracts" / "openapi" / "gpt-action-compact.openapi.json"
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    validator_module = load_module(
+        "anki_gpt_openapi_validator_regression",
+        REPO_ROOT / "scripts" / "validate_openapi.py",
+    )
+
+    compatibility = schema["components"]["schemas"]["ExecutionModeCompatibility"]
+    assert compatibility["properties"]["execution_mode"]["$ref"].endswith("/ExecutionMode")
+    assert compatibility["properties"]["dry_run"]["type"] == "boolean"
+
+    reorder_schema = (
+        schema["paths"]["/organization/reorder-order-create"]["post"]
+        ["requestBody"]["content"]["application/json"]["schema"]
+    )
+    assert reorder_schema == {
+        "$ref": "#/components/schemas/ReorderOrderCreateRequest",
+    }
+    assert validator_module.object_schemas_without_properties(schema) == []
+
+    operation_ids = [
+        operation["operationId"]
+        for item in schema["paths"].values()
+        for method, operation in item.items()
+        if method in validator_module.METHODS
+    ]
+    assert len(operation_ids) == 23
+    assert len(set(operation_ids)) == 23
+    assert "X-Tagging-Token" not in schema_path.read_text(encoding="utf-8")
+
+
+def test_gpt_builder_object_scanner_covers_nested_schema_locations():
+    validator_module = load_module(
+        "anki_gpt_openapi_validator_nested_regression",
+        REPO_ROOT / "scripts" / "validate_openapi.py",
+    )
+    artificial = {
+        "components": {
+            "schemas": {
+                "Container": {
+                    "type": "object",
+                    "properties": {
+                        "payload": {
+                            "anyOf": [
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "additionalProperties": {
+                                            "type": "object",
+                                        },
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        },
+    }
+    assert validator_module.object_schemas_without_properties(artificial) == [
+        "$.components.schemas.Container.properties.payload.anyOf[0].items."
+        "additionalProperties"
+    ]
+
+
 def test_canonical_gpt_knowledge_requires_direct_default_and_explicit_preview():
     canonical_paths = [
         ROOT / "gpt-knowledge" / "03_padrao_de_reescrita.md",
@@ -1132,6 +1198,31 @@ def test_sensitive_reads_require_auth_but_version_is_public(query_api, monkeypat
     )
     assert status == 200
     assert json.loads(body)["events"] == []
+
+
+def test_compact_openapi_route_is_public_read_only_and_not_cached(
+    query_api, monkeypatch, tmp_path
+):
+    compact_path = REPO_ROOT / "contracts" / "openapi" / "gpt-action-compact.openapi.json"
+    token_file = tmp_path / "route-test-token"
+    token_file.write_text("fixture-token", encoding="utf-8")
+    monkeypatch.setattr(query_api, "GPT_COMPACT_SCHEMA_PATH", compact_path)
+    monkeypatch.setattr(query_api, "TAGGING_TOKEN_FILE", token_file)
+    monkeypatch.delenv(query_api.TAGGING_TOKEN_ENV, raising=False)
+    monkeypatch.setattr(query_api, "REQUIRE_READ_AUTH", True)
+
+    status, body, headers = get_from_test_server(query_api, "/openapi/gpt.json")
+    normalized_headers = {name.casefold(): value for name, value in headers.items()}
+    assert status == 200
+    assert body == compact_path.read_bytes()
+    assert normalized_headers["content-type"] == "application/json; charset=utf-8"
+    assert normalized_headers["cache-control"] == "no-store, max-age=0"
+    assert normalized_headers["pragma"] == "no-cache"
+    assert "set-cookie" not in normalized_headers
+
+    status, body, _ = get_from_test_server(query_api, "/decks")
+    assert status == 401
+    assert json.loads(body) == {"error": "unauthorized"}
 
 
 def test_mutating_get_wrappers_are_deprecated_with_post_successor_headers(query_api, monkeypatch, tmp_path):
