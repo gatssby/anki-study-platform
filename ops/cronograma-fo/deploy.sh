@@ -13,5 +13,5 @@ rsync -az --itemize-changes \
   --exclude='.env' --exclude='data/' --exclude='state/' --exclude='work/' \
   --exclude='output/' --exclude='uploads/' --exclude='imports/' --exclude='backups/' \
   "$BUNDLE/" "$REMOTE:$REMOTE_ROOT/"
-ssh "$REMOTE" "set -euo pipefail; cd '$REMOTE_ROOT'; if [ ! -x .venv/bin/python ]; then python3 -m venv --system-site-packages .venv; fi; .venv/bin/python -m pip install -q -r requirements.txt; .venv/bin/python -m pip check; docker compose config >/dev/null; docker compose build cronograma-fo; docker compose up -d cronograma-fo; sleep 3; curl -fsS http://127.0.0.1:18000/ >/dev/null"
+ssh "$REMOTE" "set -euo pipefail; cd '$REMOTE_ROOT'; if [ ! -x .venv/bin/python ]; then python3 -m venv --system-site-packages .venv; fi; .venv/bin/python -m pip install -q -r requirements.txt; .venv/bin/python -c 'import bleach, certifi, fitz, flask, gunicorn, markdown_it, openpyxl, playwright, pypdf'; docker compose config >/dev/null; docker compose build cronograma-fo; docker compose up -d cronograma-fo; sleep 3; curl -fsS http://127.0.0.1:18000/ >/dev/null"
 echo "CRONOGRAMA_DEPLOYED backup=$REMOTE_ROOT/backups/monorepo-$STAMP"
