@@ -1541,6 +1541,17 @@ def persist_note(note) -> None:
         raise RuntimeError("no_supported_note_persist_method")
 
 
+def persist_notes_batch(notes: list) -> None:
+    if not notes:
+        return
+    update_notes = getattr(mw.col, "update_notes", None)
+    if callable(update_notes):
+        update_notes(notes)
+        return
+    for note in notes:
+        persist_note(note)
+
+
 def add_tags_to_notes(note_ids: list[int], tags: list[str]) -> dict:
     changed_note_ids = []
     if not tags:
@@ -2218,27 +2229,38 @@ def update_note_fields(
         try:
             if planned_note_ids:
                 undo_entry = begin_custom_undo_entry(undo_label)
+            changed_items = []
             for item in prepared:
                 if not item["changed_fields"]:
                     continue
                 for field_name, after in item["fields"].items():
                     set_note_field_value(item["note"], field_name, after, item["field_names"])
-                persist_note(item["note"])
-                applied_note_ids.append(item["note_id"])
+                changed_items.append(item)
+            persist_notes_batch([item["note"] for item in changed_items])
+            applied_note_ids.extend(item["note_id"] for item in changed_items)
             save_collection(strict=True)
             if applied_note_ids:
                 undo_available = finish_custom_undo_entry(undo_entry)
         except Exception as apply_error:
+            rollback_notes = []
             for item in prepared:
                 if not item["changed_fields"]:
                     continue
                 try:
                     for field_name, before in item["original_fields"].items():
                         set_note_field_value(item["note"], field_name, before, item["field_names"])
-                    persist_note(item["note"])
+                    rollback_notes.append(item["note"])
                 except Exception as rollback_error:
                     rollback_errors.append({
                         "note_id": item["note_id"],
+                        "error": f"{type(rollback_error).__name__}: {rollback_error}",
+                    })
+            if rollback_notes:
+                try:
+                    persist_notes_batch(rollback_notes)
+                except Exception as rollback_error:
+                    rollback_errors.append({
+                        "note_id": None,
                         "error": f"{type(rollback_error).__name__}: {rollback_error}",
                     })
             try:

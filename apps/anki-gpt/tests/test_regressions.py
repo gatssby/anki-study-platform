@@ -3208,6 +3208,54 @@ def test_update_note_fields_registers_one_custom_undo_entry(
     assert compact["undo_entry"] == 77
 
 
+def test_update_note_fields_batches_large_apply_before_merging_undo(
+    organization, monkeypatch
+):
+    notes = [
+        FakeAnkiNote(note_id, {"Text": f"antes {note_id}"})
+        for note_id in range(1, 31)
+    ]
+    configure_fake_notes(
+        organization,
+        monkeypatch,
+        notes,
+        persist=lambda _note: pytest.fail("batch API must replace per-note writes"),
+    )
+    calls = []
+    organization.mw.col.add_custom_undo_entry = (
+        lambda label: calls.append(("begin", label)) or 77
+    )
+    organization.mw.col.update_notes = (
+        lambda batch: calls.append(("update_notes", [note.id for note in batch]))
+    )
+    organization.mw.col.merge_undo_entries = (
+        lambda entry: calls.append(("merge", entry))
+    )
+    updates = [
+        {
+            "note_id": note.id,
+            "fields": {"Text": f"{{{{c1::depois {note.id}}}}}"},
+            **organization.note_precondition(note, ["Text"]),
+        }
+        for note in notes
+    ]
+
+    result = organization.update_note_fields(
+        updates,
+        dry_run=False,
+        require_preconditions=True,
+    )
+
+    assert result["errors"] == []
+    assert result["changed_count"] == 30
+    assert result["undo_available"] is True
+    assert calls == [
+        ("begin", "Anki GPT: atualizar campos de notes"),
+        ("update_notes", list(range(1, 31))),
+        ("merge", 77),
+    ]
+
+
 @pytest.mark.parametrize("invalid_index", [0, 1, 2])
 def test_invalid_note_anywhere_prevents_all_writes(organization, monkeypatch, invalid_index):
     notes = [FakeAnkiNote(1, {"Text": "a"}), FakeAnkiNote(2, {"Text": "b"})]
