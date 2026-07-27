@@ -18,6 +18,7 @@ import unicodedata
 import uuid
 
 from fo_contracts import ContractError, validate_aulas_index_header
+from note_preconditions import build_note_precondition as build_canonical_note_precondition
 from state_store import (
     GENERATION_FILES,
     INDEX_SCHEMA_VERSION,
@@ -27,7 +28,7 @@ from state_store import (
     publish_generation,
 )
 
-API_VERSION = "3.0.0"
+API_VERSION = "3.1.0"
 PROCESS_STARTED_AT = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 PROCESS_STARTED_MONOTONIC = time.monotonic()
 PROCESS_MODULE_HASH = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -774,6 +775,32 @@ def build_snapshot_media_index(notes_by_id: dict) -> dict:
     return index
 
 
+def validate_snapshot_note_precondition_source(note: dict) -> None:
+    note_id = note.get("note_id")
+    for key in ("model_id", "mod", "usn"):
+        value = note.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"snapshot_note_missing_{key}: note_id={note_id}")
+
+    field_names = note.get("field_names")
+    fields = note.get("fields")
+    tags = note.get("tags")
+    if (
+        not isinstance(field_names, list)
+        or not all(isinstance(name, str) for name in field_names)
+        or len(field_names) != len(set(field_names))
+    ):
+        raise ValueError(f"snapshot_note_invalid_field_names: note_id={note_id}")
+    if (
+        not isinstance(fields, dict)
+        or list(fields) != field_names
+        or not all(isinstance(value, str) for value in fields.values())
+    ):
+        raise ValueError(f"snapshot_note_invalid_fields: note_id={note_id}")
+    if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+        raise ValueError(f"snapshot_note_invalid_tags: note_id={note_id}")
+
+
 def full_snapshot_content_hash(payload: dict) -> str:
     stable = dict(payload)
     stable.pop("timestamp", None)
@@ -812,6 +839,10 @@ def _publish_full_snapshot_payload_once(
     }
     if len(by_id) != len(notes):
         raise ValueError("snapshot_note_ids_invalid_or_duplicate")
+    snapshot_version = payload.get("snapshot_version")
+    if isinstance(snapshot_version, int) and not isinstance(snapshot_version, bool) and snapshot_version >= 3:
+        for note in notes:
+            validate_snapshot_note_precondition_source(note)
 
     decks = payload.get("decks", [])
     if not isinstance(decks, list):
@@ -3873,6 +3904,48 @@ def int_or_none(value):
         return None
 
 
+def snapshot_note_precondition(note):
+    model_id = int_or_none(note.get("model_id"))
+    mod = int_or_none(note.get("mod"))
+    usn = int_or_none(note.get("usn"))
+    field_names = note.get("field_names")
+    fields = note.get("fields")
+    tags = note.get("tags")
+    if (
+        model_id is None
+        or mod is None
+        or usn is None
+        or not isinstance(field_names, list)
+        or not all(isinstance(name, str) for name in field_names)
+        or not isinstance(fields, dict)
+        or not isinstance(tags, list)
+    ):
+        return None
+    return build_canonical_note_precondition(
+        model_id=model_id,
+        mod=mod,
+        usn=usn,
+        field_names=field_names,
+        fields=fields,
+        tags=tags,
+    )
+
+
+def note_read_contract(note):
+    contract = {
+        "model_id": int_or_none(note.get("model_id")),
+        "mod": int_or_none(note.get("mod")),
+        "usn": int_or_none(note.get("usn")),
+        "precondition_available": False,
+    }
+    precondition = snapshot_note_precondition(note)
+    if precondition is not None:
+        contract.update(precondition)
+        contract["precondition"] = dict(precondition)
+        contract["precondition_available"] = True
+    return contract
+
+
 def normalize_deck_match_text(value):
     text = unicodedata.normalize("NFC", str(value or "")).strip()
     text = re.sub(r"\s+", " ", text)
@@ -4012,6 +4085,7 @@ def build_card(note, note_media_index):
         "cards": cards,
         "card_count": len(cards),
     }
+    item.update(note_read_contract(note))
     item.update(deck_summary)
     return item
 
@@ -4133,6 +4207,7 @@ def build_note_info(note):
         "card_count": len(cards),
         "cards_real_available": bool(cards),
     }
+    info.update(note_read_contract(note))
     info.update(note_deck_summary_from_cards(cards))
     return info
 
@@ -4142,7 +4217,7 @@ def build_materialized_card(card, note):
     note_id = normalized.get("note_id") or note.get("note_id")
     text = clean_note_text(note) or str(note.get("compare_text", "") or "")
     note_cards = note_real_cards(note)
-    return {
+    item = {
         "card_id": normalized.get("card_id"),
         "note_id": note_id,
         "deck": normalized.get("deck_name") or note.get("deck", ""),
@@ -4164,13 +4239,15 @@ def build_materialized_card(card, note):
             if item.get("card_id") is not None
         ],
     }
+    item.update(note_read_contract(note))
+    return item
 
 
 def build_materialized_note(note):
     cards = note_real_cards(note)
     text = clean_note_text(note) or str(note.get("compare_text", "") or "")
     note_id = note.get("note_id")
-    return {
+    item = {
         "note_id": note_id,
         "deck": note.get("deck", ""),
         "root_deck": note.get("root_deck", ""),
@@ -4192,6 +4269,8 @@ def build_materialized_note(note):
         ],
         "cards": [build_materialized_card(card, note) for card in cards],
     }
+    item.update(note_read_contract(note))
+    return item
 
 
 def unique_notes_from_card_matches(matches):
@@ -4218,7 +4297,7 @@ def build_endpoint_items_from_matches(matches, result_kind, note_media_index):
 
 def build_card_info(card, note):
     info = normalize_real_card(card, note)
-    info["note"] = {
+    note_info = {
         "note_id": note.get("note_id"),
         "note_type": note.get("note_type"),
         "kind": note.get("kind"),
@@ -4229,6 +4308,9 @@ def build_card_info(card, note):
         "fields": note.get("fields", {}),
         "compare_text": note.get("compare_text", ""),
     }
+    note_info.update(note_read_contract(note))
+    info["note"] = note_info
+    info.update(note_read_contract(note))
     return info
 
 

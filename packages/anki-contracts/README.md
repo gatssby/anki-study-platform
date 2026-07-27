@@ -1,6 +1,6 @@
 # Anki contracts
 
-Os contratos OpenAPI canônicos ficam em `contracts/openapi`. As normalizações
-que precisam executar dentro do Anki continuam vendorizadas no addon; não há
-dependência de pacote Python global. A extração adicional só deve ocorrer com
-teste de equivalência addon/backend.
+Os contratos OpenAPI canônicos ficam em `contracts/openapi`.
+`note_preconditions.py` é a única implementação do material canônico e do
+SHA-256 usados por leituras e pelo executor apply-v2. Os bundles copiam esse
+módulo para o addon e para a API, sem dependência de pacote Python global.

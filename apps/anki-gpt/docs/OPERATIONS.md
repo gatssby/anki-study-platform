@@ -45,6 +45,13 @@ No formato manual, cada item é plano:
 
 `expected_content_hash` é obrigatório no apply v2. Os outros três valores são incluídos quando o runtime do Anki os disponibiliza. Qualquer conflito impede todas as escritas do lote; falha durante persistência aciona rollback compensatório.
 
+As leituras de note em `/cards/search`, `/cards/search-real`,
+`/cards/materialize`, `/cards/info` e `/notes/info` publicam as quatro
+precondições no nível da note e também em `precondition`. O hash não deve ser
+recalculado pelo GPT. Ele cobre `model_id`, todos os campos na ordem do model
+(nome e valor exato, inclusive HTML, Unicode, line endings e strings vazias) e
+tags ordenadas. Scheduling e timestamps não participam.
+
 Wrappers GET legados que criam operação foram migrados para POST de forma retrocompatível. Os GETs continuam disponíveis durante a transição e retornam headers `Deprecation`, `Sunset`, `Link` e `Warning`.
 
 Receipts locais cobrem `done` e `partially_applied`: operação, modo, resultado e precondições têm SHA-256 canônico, TTL de 90 dias e replay do reporte técnico sem segundo apply. O add-on envia resultados por `POST /organization/operations/result`; `/confirm` continua como alias legado, não como autorização manual. Receipt expirado ou divergente bloqueia.
@@ -53,6 +60,10 @@ Receipts locais cobrem `done` e `partially_applied`: operação, modo, resultado
 
 Resultados compactados preservam IDs de notes/cards, campos alterados, erros/warnings por item, precondições e hashes antes/depois. `update_note_fields` permanece atômico por lote: um conflito de item impede as escritas desse lote, evitando estado parcial; uma correção posterior deve criar outra operação apenas com os IDs problemáticos.
 
-O runtime ainda não armazena indefinidamente os valores completos anteriores de cada campo. Portanto, os hashes permitem auditoria e detecção, mas não uma reversão automática por campo. Uma reversão futura exigirá armazenamento criptografado/limitado por retenção dos valores anteriores ou um log append-only separado; isso não foi misturado à mudança de modo.
+Em aplicação real de `update_note_fields`, o add-on registra uma entrada de undo
+nativa e agrupa todas as alterações do lote nela. O resultado técnico publica
+`undo_available`, `undo_label` e `undo_entry`. Esse undo é imediato e pertence à
+pilha da sessão do Anki; o runtime não persiste indefinidamente o conteúdo antigo
+dos campos. O backup da coleção continua sendo a proteção durável.
 
 Não há contrato de etapas compostas dentro de um único `operation_id`. O add-on já busca até dez operações pendentes por ciclo, então normalização, grifo e reorder podem ser operações ordenadas separadas e consumidas na mesma sincronização, mas não têm transação única entre etapas. Uma composição futura precisará de `steps[]`, ordem, resultado por etapa, política de falha e recibo da operação principal.

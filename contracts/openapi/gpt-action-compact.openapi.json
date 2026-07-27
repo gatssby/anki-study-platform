@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Anki GPT Stable API",
-    "version": "3.0.0",
-    "description": "Schema estável para GPT Builder. A API é majoritariamente de leitura; a única escrita exposta ao GPT é o reorder Created/Added por ordem lógica via addon local do Anki."
+    "version": "3.1.0",
+    "description": "Schema estável para GPT Builder. Leituras de notes publicam as mesmas precondições canônicas exigidas por update_note_fields direct/apply v2."
   },
   "servers": [
     {
@@ -91,6 +91,137 @@
           "expected_model_id": {"type": ["integer", "null"]}
         },
         "description": "Item de result.apply_preconditions para o fluxo preview legado. O caminho direto usa as precondicoes publicadas do note no primeiro payload."
+      },
+      "NotePrecondition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_content_hash",
+          "expected_mod",
+          "expected_usn",
+          "expected_model_id"
+        ],
+        "properties": {
+          "expected_content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expected_mod": {"type": "integer"},
+          "expected_usn": {"type": "integer"},
+          "expected_model_id": {"type": "integer"}
+        },
+        "description": "Precondição canônica calculada pela API a partir do snapshot; o GPT nunca calcula ou inventa o hash."
+      },
+      "CanonicalNoteRead": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "note_id",
+          "model_id",
+          "mod",
+          "usn",
+          "expected_content_hash",
+          "expected_mod",
+          "expected_usn",
+          "expected_model_id",
+          "precondition"
+        ],
+        "properties": {
+          "note_id": {"type": "integer"},
+          "model_id": {"type": "integer"},
+          "mod": {"type": "integer"},
+          "usn": {"type": "integer"},
+          "field_names": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "fields": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {"type": "string"}
+          },
+          "raw_fields": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {"type": "string"}
+          },
+          "tags": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "expected_content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expected_mod": {"type": "integer"},
+          "expected_usn": {"type": "integer"},
+          "expected_model_id": {"type": "integer"},
+          "precondition": {"$ref": "#/components/schemas/NotePrecondition"},
+          "precondition_available": {"type": "boolean", "const": true}
+        }
+      },
+      "CanonicalCardRead": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "card_id",
+          "note_id",
+          "model_id",
+          "expected_content_hash",
+          "expected_mod",
+          "expected_usn",
+          "expected_model_id",
+          "precondition"
+        ],
+        "properties": {
+          "card_id": {"type": "integer"},
+          "note_id": {"type": "integer"},
+          "model_id": {"type": "integer"},
+          "expected_content_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "expected_mod": {"type": "integer"},
+          "expected_usn": {"type": "integer"},
+          "expected_model_id": {"type": "integer"},
+          "precondition": {"$ref": "#/components/schemas/NotePrecondition"},
+          "note": {"$ref": "#/components/schemas/CanonicalNoteRead"}
+        }
+      },
+      "NoteSearchResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["count", "returned", "cards"],
+        "properties": {
+          "count": {"type": "integer"},
+          "returned": {"type": "integer"},
+          "cards": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {"$ref": "#/components/schemas/CanonicalNoteRead"},
+                {"$ref": "#/components/schemas/CanonicalCardRead"}
+              ]
+            }
+          }
+        }
+      },
+      "MaterializeResponse": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["notes", "cards", "materialized_notes", "materialized_cards"],
+        "properties": {
+          "materialized_notes": {"type": "integer"},
+          "materialized_cards": {"type": "integer"},
+          "notes": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/CanonicalNoteRead"}
+          },
+          "cards": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/CanonicalCardRead"}
+          }
+        }
       },
       "NoteFieldUpdatesCreateRequest": {
         "type": "object",
@@ -237,11 +368,7 @@
             "description": "Resposta JSON",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "properties": {}
-                }
+                "schema": {"$ref": "#/components/schemas/NoteSearchResponse"}
               }
             }
           }
@@ -293,11 +420,7 @@
             "description": "Resposta JSON",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "properties": {}
-                }
+                "schema": {"$ref": "#/components/schemas/NoteSearchResponse"}
               }
             }
           }
@@ -373,11 +496,7 @@
             "description": "Resposta JSON",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "properties": {}
-                }
+                "schema": {"$ref": "#/components/schemas/NoteSearchResponse"}
               }
             }
           }
@@ -526,11 +645,7 @@
             "description": "Resposta JSON com notes/cards materializados do lote",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "properties": {}
-                }
+                "schema": {"$ref": "#/components/schemas/MaterializeResponse"}
               }
             }
           },

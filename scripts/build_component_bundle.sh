@@ -25,6 +25,9 @@ case "$COMPONENT" in
     mkdir -p "$OUTPUT_DIR/scripts"
     rsync -aL "${COMMON_EXCLUDES[@]}" "$ROOT/services/anki-api/" "$OUTPUT_DIR/scripts/"
     install -m 0644 \
+      "$ROOT/packages/anki-contracts/note_preconditions.py" \
+      "$OUTPUT_DIR/scripts/note_preconditions.py"
+    install -m 0644 \
       "$ROOT/contracts/openapi/gpt-action-compact.openapi.json" \
       "$OUTPUT_DIR/scripts/gpt-action-compact.openapi.json"
     ;;
@@ -36,6 +39,9 @@ case "$COMPONENT" in
   addon)
     mkdir -p "$OUTPUT_DIR/addon-local" "$OUTPUT_DIR/local-tools"
     rsync -aL "${COMMON_EXCLUDES[@]}" "$ROOT/apps/anki-gpt/addon-local/" "$OUTPUT_DIR/addon-local/"
+    install -m 0644 \
+      "$ROOT/packages/anki-contracts/note_preconditions.py" \
+      "$OUTPUT_DIR/addon-local/note_preconditions.py"
     rsync -aL "$ROOT/apps/anki-gpt/local-tools/anki_publish.sh" "$OUTPUT_DIR/local-tools/"
     ;;
   *)

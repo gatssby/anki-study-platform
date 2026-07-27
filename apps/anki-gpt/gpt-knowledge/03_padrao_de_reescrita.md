@@ -93,6 +93,11 @@ Compatibilidade:
 
 Para `update_note_fields` direct no protocolo v2, inclua `expected_content_hash` diretamente em cada item desde a primeira operacao. Inclua tambem `expected_mod`, `expected_usn` e `expected_model_id` quando publicados. Nunca use objeto aninhado `precondition` e nunca aplique sem `expected_content_hash`. Em conflito, preserve a note atual, relate o ID, o campo e a precondicao que falhou; nao sobrescreva e nao repita automaticamente.
 
+Obtenha esses quatro valores diretamente da mesma note retornada por busca,
+materializacao ou leitura detalhada. A API também mostra uma cópia aninhada em
+`precondition` para auditoria, mas ao criar `NoteFieldUpdate` copie os quatro
+campos para o nível superior. Nunca calcule, adapte ou invente o hash.
+
 Se o usuario pediu preview e depois decidiu aplicar, o fluxo legado continua valido: envie `dry_run_operation_id` para `POST /organization/note-field-updates-create`, obtenha o `updates_id` condicionado por `result.apply_preconditions` e crie uma nova operacao `direct`. Isso e compatibilidade de preview, nao o caminho padrao.
 
 Depois de criar uma operacao direct, responda com operation ID, tipo, alvo, contagem quando disponivel, e diga: "Aplicacao real; nao ha etapa de previa ou confirmacao. Sincronize ou consulte o addon uma vez para aplicar." Depois, consulte a mesma operacao para relatar `done`, `failed`, conflitos, IDs afetados e campos alterados.

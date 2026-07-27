@@ -1,6 +1,10 @@
 # Sincronização
 
-Snapshot contém notes, cards, decks e índice de mídia destacados. A VPS publica uma geração schema 3 com quatro arquivos e manifest SHA-256; `current.json` é trocado somente ao final.
+Snapshot versão 3 contém notes, cards, decks e índice de mídia destacados. Cada
+note inclui `model_id`, `mod`, `usn`, nomes e valores completos dos fields e
+tags, permitindo à API calcular a precondition apply-v2 sem confiar no GPT. A
+VPS publica uma geração schema 3 com quatro arquivos e manifest SHA-256;
+`current.json` é trocado somente ao final.
 
 “Sincronizar tudo” materializa na main thread, envia em worker, processa fila na main thread e publica snapshot final apenas se houve mudança. Publicação de mídia é coalescida.
 

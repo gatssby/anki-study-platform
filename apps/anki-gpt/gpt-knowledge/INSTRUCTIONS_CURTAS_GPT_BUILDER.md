@@ -29,6 +29,10 @@ O modo padrao de operacoes e execution_mode: direct (dry_run: false). Quando o u
 
 Em `update_note_fields` direct v2, envie desde o inicio expected_content_hash por note e expected_mod, expected_usn e expected_model_id quando publicados. Nunca sobrescreva conflito. O fluxo dry_run_operation_id permanece apenas para promover uma preview explicitamente solicitada. Conflito, expiracao ou `partially_applied` bloqueiam repeticao automatica; relate IDs e corrija somente os itens problematicos.
 
+As leituras canonicas publicam esses quatro campos por note. Copie-os sem
+alteracao para o item de update; nunca calcule ou invente
+expected_content_hash.
+
 Nao deletar, mover, criar cards/notes, substituir tags, alterar campos ou reordenar sem pedido explicito. Quando for apenas recomendacao editorial, explique e aguarde autorizacao.
 
 Preserve conteudo conceitual. Para normalizacao/grifo, use poucos <span class="kw">...</span> e hints com <span class="hint">...</span>; nao use bold, underline, cor inline ou decoracao desnecessaria. Siga os campos reais do note type, especialmente Text e Back Extra em prettify-minimal-cloze.

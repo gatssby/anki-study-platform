@@ -23,6 +23,17 @@ try:
 except ImportError:
     from runtime_paths import append_log_resilient, get_runtime_paths
 
+try:
+    from .note_preconditions import (
+        build_note_precondition as build_canonical_note_precondition,
+        note_content_hash as canonical_note_content_hash,
+    )
+except ImportError:
+    from note_preconditions import (
+        build_note_precondition as build_canonical_note_precondition,
+        note_content_hash as canonical_note_content_hash,
+    )
+
 RUNTIME_PATHS = get_runtime_paths()
 LOG_FILE = RUNTIME_PATHS.log_file
 LOG_MAX_BYTES = 5 * 1024 * 1024
@@ -581,6 +592,9 @@ def compact_update_note_fields_result_payload(result_payload: dict) -> dict:
         "atomic",
         "rolled_back",
         "rollback_errors",
+        "undo_available",
+        "undo_label",
+        "undo_entry",
         "preconditions_required",
         "planned_note_ids",
         "affected_note_ids",
@@ -1981,30 +1995,29 @@ def note_version_value(note, name: str):
 
 
 def note_content_hash(note, field_names: list[str]) -> str:
-    payload = {
-        "model_id": note_version_value(note, "mid"),
-        "fields": [
-            [field_name, get_note_field_value(note, field_name, field_names)]
+    return canonical_note_content_hash(
+        model_id=note_version_value(note, "mid"),
+        field_names=field_names,
+        fields={
+            field_name: get_note_field_value(note, field_name, field_names)
             for field_name in field_names
-        ],
-        "tags": sorted(str(tag) for tag in (getattr(note, "tags", []) or [])),
-    }
-    canonical = json.dumps(
-        payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest()
+        },
+        tags=getattr(note, "tags", []) or [],
+    )
 
 
 def note_precondition(note, field_names: list[str]) -> dict:
-    return {
-        "expected_content_hash": note_content_hash(note, field_names),
-        "expected_mod": note_version_value(note, "mod"),
-        "expected_usn": note_version_value(note, "usn"),
-        "expected_model_id": note_version_value(note, "mid"),
-    }
+    return build_canonical_note_precondition(
+        model_id=note_version_value(note, "mid"),
+        mod=note_version_value(note, "mod"),
+        usn=note_version_value(note, "usn"),
+        field_names=field_names,
+        fields={
+            field_name: get_note_field_value(note, field_name, field_names)
+            for field_name in field_names
+        },
+        tags=getattr(note, "tags", []) or [],
+    )
 
 
 def validate_note_precondition(update: dict, current: dict, require: bool) -> None:
@@ -2051,6 +2064,23 @@ def update_fields_should_warn_missing_kw(requested_by: str = "", reason: str = "
         if '<span class="kw">' in value or '<span class="hint">' in value:
             return True
     return False
+
+
+def begin_custom_undo_entry(label: str):
+    add_entry = getattr(mw.col, "add_custom_undo_entry", None)
+    if not callable(add_entry):
+        return None
+    return add_entry(label)
+
+
+def finish_custom_undo_entry(entry) -> bool:
+    if entry is None:
+        return False
+    merge_entries = getattr(mw.col, "merge_undo_entries", None)
+    if not callable(merge_entries):
+        return False
+    merge_entries(entry)
+    return True
 
 
 def update_note_fields(
@@ -2180,9 +2210,14 @@ def update_note_fields(
     applied_note_ids = []
     rolled_back = False
     rollback_errors = []
+    undo_label = "Anki GPT: atualizar campos de notes"
+    undo_entry = None
+    undo_available = False
 
     if not errors and not dry_run:
         try:
+            if planned_note_ids:
+                undo_entry = begin_custom_undo_entry(undo_label)
             for item in prepared:
                 if not item["changed_fields"]:
                     continue
@@ -2191,6 +2226,8 @@ def update_note_fields(
                 persist_note(item["note"])
                 applied_note_ids.append(item["note_id"])
             save_collection(strict=True)
+            if applied_note_ids:
+                undo_available = finish_custom_undo_entry(undo_entry)
         except Exception as apply_error:
             for item in prepared:
                 if not item["changed_fields"]:
@@ -2235,6 +2272,9 @@ def update_note_fields(
         "atomic": True,
         "rolled_back": rolled_back,
         "rollback_errors": rollback_errors,
+        "undo_available": undo_available,
+        "undo_label": undo_label if undo_available else None,
+        "undo_entry": undo_entry if undo_available else None,
         "preconditions_required": bool(require_preconditions and not dry_run),
         # Public, stable apply-v2 contract.  The backend persists this key and
         # can materialize a conditioned updates_id from the dry-run operation.

@@ -88,7 +88,7 @@ SYNC_PIPELINE_COALESCED_REQUESTS = 0
 LAST_POSTED_SNAPSHOT_HASH = ""
 LAST_CONFIRMED_GENERATION_ID = ""
 OPERATIONS_DIALOG = None
-ADDON_VERSION = "3.0.0"
+ADDON_VERSION = "3.1.0"
 ADDON_LOADED_AT = datetime.now().astimezone().isoformat()
 ADDON_MAIN_THREAD_ID = threading.get_ident()
 ADDON_RUNTIME_DIAGNOSTICS_FILE = STATE_DIR / "addon_runtime.json"
@@ -1159,6 +1159,9 @@ def serialize_note(note, deck_name: str, deck_name_map: dict, included_deck_ids=
 
     return {
         "note_id": int(note.id),
+        "model_id": int(note.mid),
+        "mod": int(note.mod),
+        "usn": int(note.usn),
         "deck": primary_deck,
         "root_deck": root_deck_name(primary_deck) if primary_deck else "",
         "note_type": note_type,
@@ -1217,7 +1220,7 @@ def build_payload() -> dict:
         "event": "sync_did_finish_notes_snapshot",
         "timestamp": generated_at,
         "generated_at": generated_at,
-        "snapshot_version": 2,
+        "snapshot_version": 3,
         "addon_version": ADDON_VERSION,
         "profile": mw.pm.name,
         "note_count": len(notes),
