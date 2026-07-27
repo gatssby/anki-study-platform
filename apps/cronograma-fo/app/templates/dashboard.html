@@ -138,7 +138,7 @@
                   <span>Em dia</span>
                   {% endif %}
                 </div>
-                {% if target.lesson_type != 'pending' %}
+                {% if (planned.lesson_type != 'lesson' or row.has_assignment) and target.lesson_type != 'pending' %}
                 <form method="post" action="{{ url_for('toggle_seen', lesson_code=target.lesson_code) }}" data-preserve-scroll>
                   <input type="hidden" name="next_date" value="{{ selected_date }}" />
                   <input type="hidden" name="fo_view" value="{{ fo_view }}" />

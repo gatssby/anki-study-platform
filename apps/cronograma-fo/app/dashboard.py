@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
+from collections import defaultdict
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -125,6 +128,36 @@ def fetch_assignments_for_date(conn: sqlite3.Connection, target_date: str) -> di
     return {row["planned_slot_key"]: row["assigned_lesson_code"] for row in rows}
 
 
+class DuplicateDailyAssignmentError(RuntimeError):
+    pass
+
+
+@contextmanager
+def daily_assignment_transaction(conn: sqlite3.Connection) -> Iterator[None]:
+    owns_transaction = not conn.in_transaction
+    savepoint_name = "build_today_rows"
+
+    if owns_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+    else:
+        conn.execute(f"SAVEPOINT {savepoint_name}")
+
+    try:
+        yield
+    except Exception:
+        if owns_transaction:
+            conn.rollback()
+        else:
+            conn.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+        raise
+    else:
+        if owns_transaction:
+            conn.commit()
+        else:
+            conn.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+
+
 def upsert_assignment(
     conn: sqlite3.Connection,
     target_date: str,
@@ -215,8 +248,17 @@ def fetch_track_due_lessons(conn: sqlite3.Connection, lesson: dict[str, Any], ta
 
 
 def first_unseen(lessons: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return first_unseen_excluding(lessons)
+
+
+def first_unseen_excluding(
+    lessons: list[dict[str, Any]],
+    *,
+    excluded_codes: set[str] | None = None,
+) -> dict[str, Any] | None:
+    excluded = excluded_codes or set()
     for lesson in lessons:
-        if lesson["is_seen"] == 0:
+        if lesson["is_seen"] == 0 and lesson["lesson_code"] not in excluded:
             return lesson
     return None
 
@@ -231,13 +273,166 @@ def unseen_before_planned_count(lessons: list[dict[str, Any]], planned_slot_key:
     return count
 
 
-def build_today_rows(conn: sqlite3.Connection, target_date: str) -> tuple[list[dict[str, Any]], set[str]]:
-    planned_lessons = fetch_lessons_for_date(conn=conn, target_date=target_date, track_code="FO")
+def lesson_scope(lesson: dict[str, Any]) -> tuple[str | None, int | None]:
+    return lesson.get("subject_prefix"), lesson.get("module_number")
+
+
+def is_semantically_valid_assignment(
+    *,
+    planned: dict[str, Any],
+    assigned: dict[str, Any] | None,
+    target_date: str,
+) -> bool:
+    return bool(
+        assigned
+        and assigned.get("track_code") == "FO"
+        and assigned.get("lesson_type") == "lesson"
+        and int(assigned.get("is_cut") or 0) == 0
+        and lesson_scope(assigned) == lesson_scope(planned)
+        and str(assigned.get("recommended_date") or "") <= target_date
+    )
+
+
+def duplicate_assignment_loser_slots(
+    *,
+    assignments: dict[str, str],
+    planned_by_slot: dict[str, dict[str, Any]],
+) -> set[str]:
+    slots_by_code: dict[str, list[str]] = defaultdict(list)
+    for planned_slot_key, assigned_lesson_code in assignments.items():
+        if assigned_lesson_code:
+            slots_by_code[assigned_lesson_code].append(planned_slot_key)
+
+    loser_slots: set[str] = set()
+    for assigned_lesson_code, planned_slots in slots_by_code.items():
+        if len(planned_slots) < 2:
+            continue
+        ordered_slots = sorted(
+            planned_slots,
+            key=lambda planned_slot_key: (
+                0
+                if (
+                    planned_by_slot.get(planned_slot_key)
+                    and planned_by_slot[planned_slot_key]["lesson_code"] == assigned_lesson_code
+                )
+                else 1,
+                planned_slot_key,
+            ),
+        )
+        loser_slots.update(ordered_slots[1:])
+    return loser_slots
+
+
+def validate_no_duplicate_assignments_for_date(
+    conn: sqlite3.Connection,
+    target_date: str,
+) -> None:
+    rows = conn.execute(
+        """
+        SELECT assigned_lesson_code, COUNT(*) AS occurrence_count
+        FROM daily_assignments
+        WHERE dashboard_date = ?
+          AND assigned_lesson_code IS NOT NULL
+          AND assigned_lesson_code <> ''
+        GROUP BY assigned_lesson_code
+        HAVING COUNT(*) > 1
+        ORDER BY assigned_lesson_code
+        """,
+        (target_date,),
+    ).fetchall()
+    if not rows:
+        return
+    details = ", ".join(
+        f"{row['assigned_lesson_code']}={row['occurrence_count']}"
+        for row in rows
+    )
+    raise DuplicateDailyAssignmentError(
+        f"assigned_lesson_code duplicado em {target_date}: {details}"
+    )
+
+
+def build_today_rows(
+    conn: sqlite3.Connection,
+    target_date: str,
+    *,
+    as_of_date: date | None = None,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    effective_as_of = as_of_date or current_local_date()
+    can_update_snapshots = date.fromisoformat(target_date) >= effective_as_of
+
+    if not can_update_snapshots:
+        return _build_today_rows_in_transaction(
+            conn=conn,
+            target_date=target_date,
+            can_update_snapshots=False,
+        )
+
+    with daily_assignment_transaction(conn):
+        return _build_today_rows_in_transaction(
+            conn=conn,
+            target_date=target_date,
+            can_update_snapshots=True,
+        )
+
+
+def _build_today_rows_in_transaction(
+    conn: sqlite3.Connection,
+    target_date: str,
+    *,
+    can_update_snapshots: bool,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    planned_lessons = fetch_lessons_for_date(
+        conn=conn,
+        target_date=target_date,
+        track_code="FO",
+    )
     assignments = fetch_assignments_for_date(conn=conn, target_date=target_date)
+    planned_by_slot = {
+        planned["slot_key"]: planned
+        for planned in planned_lessons
+        if planned["lesson_type"] == "lesson"
+    }
 
     rows: list[dict[str, Any]] = []
-    assigned_codes: set[str] = set()
-    has_writes = False
+    reserved_codes: set[str] = set()
+    valid_existing_by_slot: dict[str, dict[str, Any]] = {}
+    duplicate_loser_slots = (
+        duplicate_assignment_loser_slots(
+            assignments=assignments,
+            planned_by_slot=planned_by_slot,
+        )
+        if can_update_snapshots
+        else set()
+    )
+
+    if can_update_snapshots:
+        for planned_slot_key in sorted(duplicate_loser_slots):
+            delete_assignment(
+                conn=conn,
+                target_date=target_date,
+                planned_slot_key=planned_slot_key,
+            )
+            assignments.pop(planned_slot_key, None)
+
+        for planned_slot_key, planned in planned_by_slot.items():
+            assigned_code = assignments.get(planned_slot_key)
+            if not assigned_code:
+                continue
+            assigned = fetch_lesson_by_code(conn=conn, lesson_code=assigned_code)
+            if not is_semantically_valid_assignment(
+                planned=planned,
+                assigned=assigned,
+                target_date=target_date,
+            ):
+                delete_assignment(
+                    conn=conn,
+                    target_date=target_date,
+                    planned_slot_key=planned_slot_key,
+                )
+                assignments.pop(planned_slot_key, None)
+                continue
+            valid_existing_by_slot[planned_slot_key] = assigned
+            reserved_codes.add(assigned_code)
 
     for planned in planned_lessons:
         row: dict[str, Any] = {
@@ -246,6 +441,8 @@ def build_today_rows(conn: sqlite3.Connection, target_date: str) -> tuple[list[d
             "delay_count": 0,
             "warning": None,
             "is_fixed": False,
+            "has_assignment": False,
+            "assignment_reason": None,
         }
 
         if planned["lesson_type"] != "lesson":
@@ -255,35 +452,71 @@ def build_today_rows(conn: sqlite3.Connection, target_date: str) -> tuple[list[d
         track_due = fetch_track_due_lessons(conn=conn, lesson=planned, target_date=target_date)
         delay_count = unseen_before_planned_count(track_due, planned["slot_key"])
 
-        assigned_code = assignments.get(planned["slot_key"])
         target_lesson: dict[str, Any] | None = None
 
-        if assigned_code:
-            assigned = fetch_lesson_by_code(conn=conn, lesson_code=assigned_code)
-            if assigned and assigned["lesson_type"] == "lesson":
+        assigned_code = assignments.get(planned["slot_key"])
+        if not can_update_snapshots:
+            if assigned_code:
+                assigned = fetch_lesson_by_code(conn=conn, lesson_code=assigned_code)
+                if assigned and assigned["lesson_type"] == "lesson":
+                    target_lesson = assigned
+                    row["is_fixed"] = True
+                    row["has_assignment"] = True
+                    row["assignment_reason"] = "historical_snapshot_preserved"
+        else:
+            assigned = valid_existing_by_slot.get(planned["slot_key"])
+            if assigned:
                 target_lesson = assigned
                 row["is_fixed"] = True
-            else:
-                delete_assignment(conn=conn, target_date=target_date, planned_slot_key=planned["slot_key"])
-                has_writes = True
+                row["has_assignment"] = True
+                row["assignment_reason"] = "existing_valid_snapshot"
 
         if target_lesson is None:
-            due_unseen = first_unseen(track_due)
-            target_lesson = due_unseen or planned
-            upsert_assignment(
-                conn=conn,
-                target_date=target_date,
-                planned_slot_key=planned["slot_key"],
-                assigned_lesson_code=target_lesson["lesson_code"],
+            due_unseen = first_unseen_excluding(
+                track_due,
+                excluded_codes=reserved_codes,
             )
-            row["is_fixed"] = True
-            has_writes = True
+            fallback_planned = (
+                planned
+                if planned["lesson_code"] not in reserved_codes
+                else None
+            )
+            target_lesson = due_unseen or fallback_planned
+
+            if can_update_snapshots and target_lesson is not None:
+                reserved_codes.add(target_lesson["lesson_code"])
+                upsert_assignment(
+                    conn=conn,
+                    target_date=target_date,
+                    planned_slot_key=planned["slot_key"],
+                    assigned_lesson_code=target_lesson["lesson_code"],
+                )
+                row["is_fixed"] = True
+                row["has_assignment"] = True
+                row["assignment_reason"] = (
+                    "first_unseen_unreserved"
+                    if due_unseen is not None
+                    else "fallback_planned_no_unreserved_pending"
+                )
+            elif target_lesson is None:
+                target_lesson = planned
+                row["assignment_reason"] = "no_unreserved_pending_lesson"
+                row["warning"] = (
+                    "Sem aula pendente elegível e não reservada para este slot."
+                )
+            else:
+                row["assignment_reason"] = "historical_snapshot_missing_preserved"
 
         row["target"] = target_lesson
         row["delay_count"] = delay_count
-        assigned_codes.add(target_lesson["lesson_code"])
+        if target_lesson.get("lesson_code"):
+            reserved_codes.add(target_lesson["lesson_code"])
 
-        if target_lesson["slot_key"] != planned["slot_key"] and delay_count > 0:
+        if (
+            row["warning"] is None
+            and target_lesson["slot_key"] != planned["slot_key"]
+            and delay_count > 0
+        ):
             module_display = planned["module_label"] or ""
             delay_word = "aula" if delay_count == 1 else "aulas"
             row["warning"] = (
@@ -293,10 +526,13 @@ def build_today_rows(conn: sqlite3.Connection, target_date: str) -> tuple[list[d
 
         rows.append(row)
 
-    if has_writes:
-        conn.commit()
+    if can_update_snapshots:
+        validate_no_duplicate_assignments_for_date(
+            conn=conn,
+            target_date=target_date,
+        )
 
-    return rows, assigned_codes
+    return rows, reserved_codes
 
 
 def build_universe_narrado_rows(conn: sqlite3.Connection, target_date: str) -> list[dict[str, Any]]:
