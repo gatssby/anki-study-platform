@@ -7,6 +7,7 @@ import hashlib
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import types
 from pathlib import Path
@@ -45,15 +46,26 @@ def query_api():
 def organization():
     sys.path.insert(0, str(ROOT / "addon-local"))
     old_aqt = sys.modules.get("aqt")
+    old_runtime_paths = sys.modules.pop("runtime_paths", None)
+    old_runtime_override = os.environ.get("ANKI_GPT_RUNTIME_DIR")
     sys.modules["aqt"] = types.SimpleNamespace(mw=types.SimpleNamespace())
-    try:
-        yield load_module("anki_gpt_organization_audit", ROOT / "addon-local" / "organization.py")
-    finally:
-        sys.path.remove(str(ROOT / "addon-local"))
-        if old_aqt is None:
-            sys.modules.pop("aqt", None)
-        else:
-            sys.modules["aqt"] = old_aqt
+    with tempfile.TemporaryDirectory(prefix="anki-gpt-addon-tests-") as runtime_dir:
+        os.environ["ANKI_GPT_RUNTIME_DIR"] = runtime_dir
+        try:
+            yield load_module("anki_gpt_organization_audit", ROOT / "addon-local" / "organization.py")
+        finally:
+            sys.path.remove(str(ROOT / "addon-local"))
+            sys.modules.pop("runtime_paths", None)
+            if old_runtime_paths is not None:
+                sys.modules["runtime_paths"] = old_runtime_paths
+            if old_runtime_override is None:
+                os.environ.pop("ANKI_GPT_RUNTIME_DIR", None)
+            else:
+                os.environ["ANKI_GPT_RUNTIME_DIR"] = old_runtime_override
+            if old_aqt is None:
+                sys.modules.pop("aqt", None)
+            else:
+                sys.modules["aqt"] = old_aqt
 
 
 def test_fo_path_traversal_is_rejected(query_api):

@@ -33,13 +33,16 @@ import subprocess
 import threading
 import time
 import unicodedata
-import fcntl
 
-LOG_FILE = Path.home() / "anki-gpt-files" / "logs" / "anki_gpt_sync.log"
+from .runtime_paths import append_log_resilient, initialize_runtime_paths
+
+
+RUNTIME_PATHS, RUNTIME_MIGRATION = initialize_runtime_paths()
+LOG_FILE = RUNTIME_PATHS.log_file
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 LOG_LOCK = threading.Lock()
-STATE_DIR = Path.home() / "anki-gpt-files" / "state"
+STATE_DIR = RUNTIME_PATHS.state
 MEDIA_PUBLISH_STATUS_FILE = STATE_DIR / "media_publish_status.json"
 AUTO_PUBLISH_PAUSE_FILE = STATE_DIR / "pause_auto_publish"
 AUTO_PUBLISH_POLICY_FILE = STATE_DIR / "auto_publish_policy.json"
@@ -52,7 +55,7 @@ COMBINED_SYNC_PROGRESS_MAX = 5
 SYNC_URL = "https://gatsby-anki.137.131.191.66.nip.io/sync/full"
 TAGGING_API_BASE = "https://gatsby-anki.137.131.191.66.nip.io"
 TAGGING_TOKEN_ENV = "ANKI_GPT_TAGGING_TOKEN"
-TAGGING_TOKEN_FILE = Path.home() / "anki-gpt-files" / "tagging_token.txt"
+TAGGING_TOKEN_FILE = RUNTIME_PATHS.token_file
 TAGGING_MAX_OPERATIONS_PER_RUN = 10
 TAGGING_TIMEOUT_SECONDS = 20
 ALLOWED_ROOTS = {"Federal Online 2026", "#UFPR", "2025"}
@@ -86,38 +89,13 @@ ADDON_RUNTIME_DIAGNOSTICS_FILE = STATE_DIR / "addon_runtime.json"
 
 
 def log(msg: str) -> None:
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    try:
-        LOG_FILE.parent.chmod(0o700)
-    except Exception:
-        pass
-    with LOG_LOCK:
-        lock_path = LOG_FILE.with_name(f".{LOG_FILE.name}.lock")
-        with lock_path.open("a", encoding="utf-8") as lock:
-            try:
-                lock_path.chmod(0o600)
-            except Exception:
-                pass
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            if LOG_FILE.exists() and LOG_FILE.stat().st_size >= LOG_MAX_BYTES:
-                LOG_FILE.with_name(f"{LOG_FILE.name}.{LOG_BACKUP_COUNT}").unlink(missing_ok=True)
-                for index in range(LOG_BACKUP_COUNT - 1, 0, -1):
-                    source = LOG_FILE.with_name(f"{LOG_FILE.name}.{index}")
-                    if source.exists():
-                        source.replace(LOG_FILE.with_name(f"{LOG_FILE.name}.{index + 1}"))
-                LOG_FILE.replace(LOG_FILE.with_name(f"{LOG_FILE.name}.1"))
-            with LOG_FILE.open("a", encoding="utf-8") as f:
-                f.write(f"[{ts}] {msg}\n")
-            try:
-                LOG_FILE.chmod(0o600)
-                for index in range(1, LOG_BACKUP_COUNT + 1):
-                    rotated = LOG_FILE.with_name(f"{LOG_FILE.name}.{index}")
-                    if rotated.exists():
-                        rotated.chmod(0o600)
-            except Exception:
-                pass
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    append_log_resilient(
+        LOG_FILE,
+        msg,
+        max_bytes=LOG_MAX_BYTES,
+        backup_count=LOG_BACKUP_COUNT,
+        thread_lock=LOG_LOCK,
+    )
 
 
 def now_iso() -> str:
@@ -333,7 +311,7 @@ except Exception as e:
     ORGANIZATION_IMPORT_ERROR = f"{type(e).__name__}: {e}"
 
 
-log("module importou")
+log(f"module importou runtime_migration={RUNTIME_MIGRATION}")
 
 
 def command_text(args: list[str]) -> str:

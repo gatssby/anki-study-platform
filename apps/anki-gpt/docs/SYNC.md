@@ -8,6 +8,10 @@ Uma operação `direct` pendente é recebida, aplicada e reportada nesse mesmo c
 
 Não teste na coleção principal. Para shadow, use objetos artificiais/diretório temporário. Cancelamento antes da troca do ponteiro não ativa geração parcial.
 
-Política local ativa: `disabled`, `manual`, `after_anki_sync` e `always`, default e recomendação `manual`. Toda publicação verifica `~/anki-gpt-files/state/pause_auto_publish` imediatamente antes de rede/mídia, e uma resposta de snapshot só é sucesso com `generation_id`.
+Política local ativa: `disabled`, `manual`, `after_anki_sync` e `always`, default
+e recomendação `manual`. Toda publicação verifica
+`~/Library/Application Support/Anki2/addon-data/anki_gpt_sync/state/pause_auto_publish`
+imediatamente antes de rede/mídia, e uma resposta de snapshot só é sucesso com
+`generation_id`.
 
 Estado validado em 2026-07-12: addon 3.0.0 carregado com política explícita `manual`. Remover `pause_auto_publish` não dispara publicação por si só; a publicação automática pós-sync continua bloqueada em modo `manual`. Não execute sync manual durante manutenção.

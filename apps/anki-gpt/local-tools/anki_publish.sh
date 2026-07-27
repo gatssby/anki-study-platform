@@ -4,7 +4,10 @@ set -euo pipefail
 REMOTE="oracle-vps"
 REMOTE_BASE="/home/ubuntu/anki-gpt-sync"
 
-LOCAL_BASE="$HOME/anki-gpt-files"
+LOCAL_BASE="${ANKI_GPT_RUNTIME_DIR:-$HOME/Library/Application Support/Anki2/addon-data/anki_gpt_sync}"
+if [[ "$LOCAL_BASE" != /* ]]; then
+  LOCAL_BASE="$HOME/$LOCAL_BASE"
+fi
 LOCAL_STATE="$LOCAL_BASE/state"
 STAGING_DIR="$LOCAL_BASE/staging"
 REFS_FILE="$STAGING_DIR/media_refs.txt"

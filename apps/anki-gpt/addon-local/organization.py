@@ -12,21 +12,26 @@ import os
 import re
 import shutil
 import unicodedata
-import fcntl
 
 try:
     from .html_utils import strip_html_text, strip_visual_wrappers
 except Exception:
     from html_utils import strip_html_text, strip_visual_wrappers
 
-LOG_FILE = Path.home() / "anki-gpt-files" / "logs" / "anki_gpt_sync.log"
+try:
+    from .runtime_paths import append_log_resilient, get_runtime_paths
+except ImportError:
+    from runtime_paths import append_log_resilient, get_runtime_paths
+
+RUNTIME_PATHS = get_runtime_paths()
+LOG_FILE = RUNTIME_PATHS.log_file
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
 ORGANIZATION_API_BASE = "https://gatsby-anki.137.131.191.66.nip.io"
 ORGANIZATION_TOKEN_ENV = "ANKI_GPT_TAGGING_TOKEN"
-ORGANIZATION_TOKEN_FILE = Path.home() / "anki-gpt-files" / "tagging_token.txt"
-REORGANIZATION_LOG_FILE = Path.home() / "anki-gpt-files" / "organization_move_log.jsonl"
-OPERATIONS_INDEX_FILE = Path.home() / "anki-gpt-files" / "organization" / "operations_index.json"
+ORGANIZATION_TOKEN_FILE = RUNTIME_PATHS.token_file
+REORGANIZATION_LOG_FILE = RUNTIME_PATHS.reorganization_log_file
+OPERATIONS_INDEX_FILE = RUNTIME_PATHS.operations_index_file
 IDEAL_DECK_TAG = "organizado::deck_ideal"
 DESTINATION_TAG_PREFIX = "organizado::destino"
 SUPPORTED_CREATE_NOTE_TYPES = {
@@ -101,20 +106,12 @@ class OperationFailedWithResult(Exception):
 
 
 def log(msg: str) -> None:
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.with_name(f".{LOG_FILE.name}.lock").open("a", encoding="utf-8") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        if LOG_FILE.exists() and LOG_FILE.stat().st_size >= LOG_MAX_BYTES:
-            LOG_FILE.with_name(f"{LOG_FILE.name}.{LOG_BACKUP_COUNT}").unlink(missing_ok=True)
-            for index in range(LOG_BACKUP_COUNT - 1, 0, -1):
-                source = LOG_FILE.with_name(f"{LOG_FILE.name}.{index}")
-                if source.exists():
-                    source.replace(LOG_FILE.with_name(f"{LOG_FILE.name}.{index + 1}"))
-            LOG_FILE.replace(LOG_FILE.with_name(f"{LOG_FILE.name}.1"))
-        with LOG_FILE.open("a", encoding="utf-8") as f:
-            f.write(f"[{ts}] {msg}\n")
-        fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    append_log_resilient(
+        LOG_FILE,
+        msg,
+        max_bytes=LOG_MAX_BYTES,
+        backup_count=LOG_BACKUP_COUNT,
+    )
 
 
 def now_iso() -> str:
@@ -3947,7 +3944,7 @@ def create_reorder_backup(batch_id: str) -> dict:
         raise RuntimeError(f"collection_file_not_found: {source}")
 
     safe_batch_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", batch_id)[:120]
-    backup_dir = Path.home() / "anki-gpt-files" / "backups" / "reorder_created_date"
+    backup_dir = RUNTIME_PATHS.backups / "reorder_created_date"
     backup_dir.mkdir(parents=True, exist_ok=True)
     backup_path = backup_dir / f"{datetime.now().strftime('%Y%m%dT%H%M%S')}-{safe_batch_id}-{source.name}"
     shutil.copy2(str(source), str(backup_path))

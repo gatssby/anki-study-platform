@@ -13,7 +13,8 @@ Os endpoints de organizacao usam o mesmo token operacional do fluxo de tagging:
 - header: `X-Tagging-Token`
 - variavel de ambiente: `ANKI_GPT_TAGGING_TOKEN`
 - arquivo na VPS: `/home/ubuntu/anki-gpt-sync/tagging_token.txt`
-- arquivo local do addon: `~/anki-gpt-files/tagging_token.txt`
+- arquivo local do addon:
+  `~/Library/Application Support/Anki2/addon-data/anki_gpt_sync/tagging_token.txt`
 
 A escolha por reutilizar o token evita introduzir uma segunda credencial para o mesmo canal VPS -> addon nesta etapa. A fila de organizacao continua separada da fila de tagging.
 
@@ -575,7 +576,7 @@ Campos como `due`, `ivl`, `factor`, `reps`, `lapses`, `queue`, `odue`, `odid` e 
 
 Movimentacoes reais (`dry_run: false`) de `move_cards_to_deck` e `move_notes_to_deck` sao registradas localmente no Mac/addon em:
 
-`~/anki-gpt-files/organization_move_log.jsonl`
+`~/Library/Application Support/Anki2/addon-data/anki_gpt_sync/organization_move_log.jsonl`
 
 Cada linha e um JSON independente. Para movimentacao, ha uma linha por card:
 
