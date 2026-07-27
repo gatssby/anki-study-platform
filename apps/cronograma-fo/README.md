@@ -120,6 +120,26 @@ python3 scripts/init_or_migrate_db.py --db data/cronograma.db --apply
 
 `--check` não escreve. Use `--apply` somente após snapshot e revisão do diagnóstico.
 
+### Hardening futuro de `daily_assignments`
+
+A aplicação garante por transação que um mesmo `assigned_lesson_code` não seja
+materializado em mais de um slot no mesmo `dashboard_date`. Um índice parcial
+equivalente pode reforçar essa regra no banco:
+
+```sql
+CREATE UNIQUE INDEX idx_daily_assignments_unique_lesson_per_date
+ON daily_assignments(dashboard_date, assigned_lesson_code)
+WHERE assigned_lesson_code IS NOT NULL
+  AND assigned_lesson_code <> '';
+```
+
+Esse índice não deve ser aplicado enquanto existirem snapshots históricos
+duplicados preservados. Antes de promovê-lo, audite e trate o histórico em uma
+migração explícita, valide o rollback sobre backup e teste concorrência entre os
+workers. Até lá, a proteção canônica é a reserva transacional da home, a
+verificação defensiva antes do commit e o validador rígido para a data atual e
+datas futuras.
+
 ## 4.2) Reprogramacao auto-adaptavel
 
 ### Ver configuracoes atuais
