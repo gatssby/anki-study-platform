@@ -25,6 +25,7 @@ print(files[-1])
 PY
 )"
 python3 - <<PY
+import hashlib
 import json
 from pathlib import Path
 
@@ -35,6 +36,23 @@ status_path = Path("$STATE/snapshot_status.json")
 
 with latest.open("r", encoding="utf-8") as f:
     payload = json.load(f)
+
+stable_payload = dict(payload)
+stable_payload.pop("timestamp", None)
+stable_payload.pop("generated_at", None)
+deck_summary = stable_payload.get("deck_summary")
+if isinstance(deck_summary, dict):
+    deck_summary = dict(deck_summary)
+    deck_summary.pop("generated_at", None)
+    stable_payload["deck_summary"] = deck_summary
+snapshot_content_hash = hashlib.sha256(
+    json.dumps(
+        stable_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+).hexdigest()
 
 notes = payload.get("notes", [])
 by_id = {str(n["note_id"]): n for n in notes if isinstance(n, dict) and "note_id" in n}
@@ -78,6 +96,7 @@ status_path.write_text(
     json.dumps({
         "generated_at": generated_at,
         "timestamp": payload.get("timestamp"),
+        "snapshot_content_hash": snapshot_content_hash,
         "source_snapshot": str(latest),
         "source": payload.get("source"),
         "event": payload.get("event"),
@@ -198,9 +217,20 @@ objects = {
     )
 }
 status = objects["snapshot_status.json"]
+media_refs_path = state / "media_refs.txt"
+status["media_refs"] = sum(
+    1
+    for line in media_refs_path.read_text(encoding="utf-8").splitlines()
+    if line.strip()
+)
+(state / "snapshot_status.json").write_text(
+    json.dumps(status, ensure_ascii=False, indent=2),
+    encoding="utf-8",
+)
 manifest = publish_generation(state, objects, metadata={
     "source": "rebuild_state",
     "generated_at": status.get("generated_at"),
+    "snapshot_content_hash": status.get("snapshot_content_hash"),
     "snapshot_version": status.get("snapshot_version"),
     "total_notes": status.get("total_notes"),
     "total_cards": status.get("total_cards"),
@@ -227,17 +257,14 @@ print("divergent_decks =", report.get("divergent_decks"))
 print("snapshot_cards_indexed =", report.get("snapshot_cards_indexed"))
 PY
 
-echo "[4/7] Restart query API..."
-PID="$(ss -ltnp | awk '/:8767 / {match($0,/pid=([0-9]+)/,m); if (m[1]!="") print m[1]}' | head -n1 || true)"
-if [ -n "${PID:-}" ]; then
-  kill "$PID" || true
-  sleep 1
+echo "[4/7] Mantendo query API online; troca de geração é atômica..."
+HEALTH_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8767/health || true)"
+if [[ "$HEALTH_STATUS" != "200" ]]; then
+  echo "query_api_unhealthy status=$HEALTH_STATUS" >&2
+  exit 1
 fi
-
-tmux kill-session -t anki-query-api 2>/dev/null || true
-tmux new-session -d -s anki-query-api "bash $SCRIPTS/start_query_api.sh" 9>&-
-
-sleep 2
+echo "query_api_restart=0"
+echo "query_api_health_status=$HEALTH_STATUS"
 
 echo "[5/7] Smoke test..."
 python3 - <<PY

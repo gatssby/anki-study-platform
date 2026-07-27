@@ -12,6 +12,8 @@ Sincronização manual sem token mostra o caminho canônico e não materializa a
 coleção. Sincronização automática registra `missing_authentication_token` sem
 popup. Falhas de upload preservam uma causa estruturada:
 `missing_authentication_token`, `authentication_rejected`, `network_error`,
-`server_error` ou `invalid_response`.
+`server_error`, `backend_temporarily_unavailable` ou `invalid_response`.
+HTTP 502/503/504 recebe até três tentativas sobre os mesmos bytes do snapshot,
+sem reprocessar a fila organization nem iniciar publicações de mídia paralelas.
 
 Rotação exige atualizar consumidores e reiniciar backend/addon de forma coordenada; valide o novo token antes de invalidar o antigo quando o desenho futuro suportar sobreposição.

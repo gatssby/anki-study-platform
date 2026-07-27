@@ -204,6 +204,7 @@ NORMAL_SEARCH_CACHE_LOCK = threading.RLock()
 NORMAL_SEARCH_CACHE = {"key": None, "value": None, "hits": 0, "misses": 0}
 OBSERVABILITY_LOCK = threading.RLock()
 OBSERVABILITY = {"last_error": None, "request_count": 0}
+FULL_SNAPSHOT_PUBLISH_LOCK = threading.Lock()
 
 
 def log_server_event(event, **fields):
@@ -773,7 +774,30 @@ def build_snapshot_media_index(notes_by_id: dict) -> dict:
     return index
 
 
-def publish_full_snapshot_payload(payload, request_path="/sync/full"):
+def full_snapshot_content_hash(payload: dict) -> str:
+    stable = dict(payload)
+    stable.pop("timestamp", None)
+    stable.pop("generated_at", None)
+    deck_summary = stable.get("deck_summary")
+    if isinstance(deck_summary, dict):
+        deck_summary = dict(deck_summary)
+        deck_summary.pop("generated_at", None)
+        stable["deck_summary"] = deck_summary
+    encoded = json.dumps(
+        stable,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _publish_full_snapshot_payload_once(
+    payload,
+    request_path="/sync/full",
+    *,
+    snapshot_hash: str,
+):
     if not isinstance(payload, dict):
         raise ValueError("invalid_snapshot_payload")
 
@@ -831,6 +855,7 @@ def publish_full_snapshot_payload(payload, request_path="/sync/full"):
     snapshot_status = {
         "generated_at": generated_at,
         "timestamp": payload.get("timestamp"),
+        "snapshot_content_hash": snapshot_hash,
         "source_snapshot": str(snapshot_path),
         "source": payload.get("source"),
         "event": payload.get("event"),
@@ -854,6 +879,7 @@ def publish_full_snapshot_payload(payload, request_path="/sync/full"):
             if ref and ref not in seen_refs:
                 seen_refs.add(ref)
                 media_refs.append(ref)
+    snapshot_status["media_refs"] = len(media_refs)
     note_media_index = build_snapshot_media_index(by_id)
     manifest = publish_generation(
         STATE_DIR,
@@ -865,6 +891,7 @@ def publish_full_snapshot_payload(payload, request_path="/sync/full"):
         },
         metadata={
             "generated_at": generated_at,
+            "snapshot_content_hash": snapshot_hash,
             "snapshot_version": payload.get("snapshot_version"),
             "addon_version": payload.get("addon_version"),
             "api_version": API_VERSION,
@@ -893,7 +920,46 @@ def publish_full_snapshot_payload(payload, request_path="/sync/full"):
         "media_refs": len(media_refs),
         "generation_id": manifest["generation_id"],
         "index_schema_version": manifest["index_schema_version"],
+        "idempotent_replay": False,
     }
+
+
+def publish_full_snapshot_payload(payload, request_path="/sync/full"):
+    if not isinstance(payload, dict):
+        raise ValueError("invalid_snapshot_payload")
+
+    snapshot_hash = full_snapshot_content_hash(payload)
+    with FULL_SNAPSHOT_PUBLISH_LOCK:
+        try:
+            objects, manifest = STATE_CACHE.snapshot()
+            status = objects.get("snapshot_status.json", {})
+        except Exception:
+            manifest = {}
+            status = {}
+
+        if (
+            isinstance(status, dict)
+            and status.get("snapshot_content_hash") == snapshot_hash
+            and isinstance(manifest.get("generation_id"), str)
+        ):
+            return {
+                "ok": True,
+                "generated_at": status.get("generated_at"),
+                "note_count": status.get("snapshot_note_count"),
+                "total_decks": status.get("total_decks"),
+                "total_cards": status.get("total_cards"),
+                "total_notes": status.get("total_notes"),
+                "media_refs": status.get("media_refs"),
+                "generation_id": manifest["generation_id"],
+                "index_schema_version": manifest.get("index_schema_version"),
+                "idempotent_replay": True,
+            }
+
+        return _publish_full_snapshot_payload_once(
+            payload,
+            request_path=request_path,
+            snapshot_hash=snapshot_hash,
+        )
 
 
 def send_file(handler, path: Path, *, content_type=None, headers=None):

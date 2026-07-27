@@ -27,4 +27,10 @@ arquivo canônico `tagging_token.txt`. Ausência conhecida não é convertida em
 erro inesperado: o fluxo manual explica a configuração necessária e o fluxo
 automático apenas registra a causa, sem popup repetitivo.
 
+Snapshot, fila organization e publicação de mídia compartilham um lock de
+pipeline. Cliques manuais e hooks automáticos concorrentes são coalescidos no
+pipeline ativo. Respostas HTTP 502/503/504 usam no máximo três tentativas com
+backoff curto, reutilizando o payload já materializado; a fila e a publicação
+de mídia só começam depois da confirmação do snapshot.
+
 Após mudança do addon, reinicie manualmente o Anki e confirme hash; nunca force reload durante operação em voo.

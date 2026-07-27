@@ -51,6 +51,9 @@ DEFAULT_AUTO_PUBLISH_MODE = "manual"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MEDIA_PUBLISH_SCRIPT = REPO_ROOT / "local-tools" / "anki_publish.sh"
 MEDIA_PUBLISH_TIMEOUT_SECONDS = 1800
+SNAPSHOT_MAX_ATTEMPTS = 3
+SNAPSHOT_RETRY_BACKOFF_SECONDS = 0.5
+SNAPSHOT_RETRYABLE_HTTP_STATUSES = {502, 503, 504}
 COMBINED_SYNC_PROGRESS_MAX = 5
 SYNC_URL = "https://gatsby-anki.137.131.191.66.nip.io/sync/full"
 TAGGING_API_BASE = "https://gatsby-anki.137.131.191.66.nip.io"
@@ -79,6 +82,9 @@ MEDIA_PUBLISH_IN_FLIGHT = False
 MEDIA_PUBLISH_REQUESTED_AGAIN = False
 MEDIA_PUBLISH_PENDING_REQUEST = None
 MEDIA_PUBLISH_LOCK = threading.Lock()
+SYNC_PIPELINE_LOCK = threading.Lock()
+SYNC_PIPELINE_OWNER = ""
+SYNC_PIPELINE_COALESCED_REQUESTS = 0
 LAST_POSTED_SNAPSHOT_HASH = ""
 LAST_CONFIRMED_GENERATION_ID = ""
 OPERATIONS_DIALOG = None
@@ -375,6 +381,53 @@ def progress_finish() -> None:
         mw.progress.finish()
     except Exception as e:
         log(f"progress finish failed {type(e).__name__}: {e}")
+
+
+def acquire_sync_pipeline(owner: str) -> dict:
+    global SYNC_PIPELINE_OWNER, SYNC_PIPELINE_COALESCED_REQUESTS
+
+    with SYNC_PIPELINE_LOCK:
+        active_owner = SYNC_PIPELINE_OWNER
+        if active_owner or MEDIA_PUBLISH_IN_FLIGHT:
+            SYNC_PIPELINE_COALESCED_REQUESTS += 1
+            log(
+                "sync pipeline coalesced "
+                f"requested_owner={owner} active_owner={active_owner or 'media_publish'} "
+                f"coalesced_requests={SYNC_PIPELINE_COALESCED_REQUESTS}"
+            )
+            return {
+                "acquired": False,
+                "coalesced": True,
+                "requested_owner": owner,
+                "active_owner": active_owner or "media_publish",
+            }
+        SYNC_PIPELINE_OWNER = owner
+        log(f"sync pipeline acquired owner={owner}")
+        return {
+            "acquired": True,
+            "coalesced": False,
+            "requested_owner": owner,
+            "active_owner": owner,
+        }
+
+
+def release_sync_pipeline(owner: str) -> bool:
+    global SYNC_PIPELINE_OWNER
+
+    with SYNC_PIPELINE_LOCK:
+        if SYNC_PIPELINE_OWNER != owner:
+            log(
+                "sync pipeline release ignored "
+                f"owner={owner} active_owner={SYNC_PIPELINE_OWNER or 'none'}"
+            )
+            return False
+        SYNC_PIPELINE_OWNER = ""
+        log(f"sync pipeline released owner={owner}")
+        return True
+
+
+def sync_pipeline_busy_message() -> str:
+    return "Sincronização já em andamento."
 
 
 def media_publish_in_flight_result(reason: str, dry_run: bool) -> dict:
@@ -763,8 +816,14 @@ def schedule_media_publish_background(
     }
 
 
-def start_media_publish_step(reason: str, step_label: str, on_done, dry_run: bool = False, show_progress: bool = True) -> None:
-    schedule_media_publish_background(
+def start_media_publish_step(
+    reason: str,
+    step_label: str,
+    on_done,
+    dry_run: bool = False,
+    show_progress: bool = True,
+) -> dict:
+    return schedule_media_publish_background(
         reason=reason,
         step_label=step_label,
         on_done=on_done,
@@ -1972,6 +2031,11 @@ def snapshot_failure_message(upload_result: dict) -> str:
         return f"Falha de rede ao enviar o snapshot. Veja o log: {LOG_FILE}"
     if cause == "server_error":
         return f"O backend recusou o snapshot. Veja o log: {LOG_FILE}"
+    if cause == "backend_temporarily_unavailable":
+        return (
+            "Backend temporariamente indisponível. Tente novamente em instantes.\n"
+            f"Veja o log: {LOG_FILE}"
+        )
     if cause == "invalid_response":
         return f"O backend retornou uma resposta inválida. Veja o log: {LOG_FILE}"
     if cause == "auto_publish_paused":
@@ -2011,70 +2075,110 @@ def post_snapshot_payload_result(payload_dict: dict, reason: str) -> dict:
 
     LAST_POSTED_SNAPSHOT_HASH = snapshot_content_hash(payload_dict)
     payload = json.dumps(payload_dict, ensure_ascii=False).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "X-Tagging-Token": token,
+    }
 
-    req = Request(
-        SYNC_URL,
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "X-Tagging-Token": token,
-        },
-        method="POST",
-    )
-
-    post_started = time.perf_counter()
-    try:
-        with urlopen(req, timeout=180) as resp:
-            body = resp.read().decode("utf-8", errors="replace")
-            try:
-                response_payload = json.loads(body)
-            except json.JSONDecodeError:
-                response_payload = {}
-            generation_id = response_payload.get("generation_id") if isinstance(response_payload, dict) else None
-            if not isinstance(generation_id, str) or not generation_id:
-                log(
-                    f"POST confirmation missing reason={reason} url={SYNC_URL} status={resp.status} "
-                    f"duration_ms={duration_ms(post_started)} step=post_sync_full"
+    for attempt in range(1, SNAPSHOT_MAX_ATTEMPTS + 1):
+        req = Request(
+            SYNC_URL,
+            data=payload,
+            headers=headers,
+            method="POST",
+        )
+        post_started = time.perf_counter()
+        try:
+            with urlopen(req, timeout=180) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                try:
+                    response_payload = json.loads(body)
+                except json.JSONDecodeError:
+                    response_payload = {}
+                generation_id = (
+                    response_payload.get("generation_id")
+                    if isinstance(response_payload, dict)
+                    else None
                 )
-                return {
-                    "ok": False,
-                    "cause": "invalid_response",
-                    "status": int(resp.status),
-                }
-            LAST_CONFIRMED_GENERATION_ID = generation_id
+                if not isinstance(generation_id, str) or not generation_id:
+                    log(
+                        f"POST confirmation missing reason={reason} url={SYNC_URL} "
+                        f"status={resp.status} attempt={attempt} "
+                        f"duration_ms={duration_ms(post_started)} step=post_sync_full"
+                    )
+                    return {
+                        "ok": False,
+                        "cause": "invalid_response",
+                        "status": int(resp.status),
+                        "attempts": attempt,
+                    }
+                LAST_CONFIRMED_GENERATION_ID = generation_id
+                log(
+                    f"POST ok reason={reason} url={SYNC_URL} status={resp.status} "
+                    f"attempt={attempt} duration_ms={duration_ms(post_started)} "
+                    f"step=post_sync_full generation_id={generation_id} "
+                    f"body_bytes={len(body.encode('utf-8'))}"
+                )
+            return {
+                "ok": True,
+                "cause": "",
+                "status": int(resp.status),
+                "generation_id": generation_id,
+                "attempts": attempt,
+            }
+        except HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            retryable = e.code in SNAPSHOT_RETRYABLE_HTTP_STATUSES
+            if retryable and attempt < SNAPSHOT_MAX_ATTEMPTS:
+                delay = SNAPSHOT_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                log(
+                    f"HTTPError retrying reason={reason} cause=backend_temporarily_unavailable "
+                    f"url={SYNC_URL} status={e.code} attempt={attempt} "
+                    f"next_attempt={attempt + 1} backoff_seconds={delay} "
+                    f"duration_ms={duration_ms(post_started)} step=post_sync_full "
+                    f"body_bytes={len(body.encode('utf-8'))}"
+                )
+                time.sleep(delay)
+                continue
+
+            if retryable:
+                cause = "backend_temporarily_unavailable"
+            elif e.code in {401, 403}:
+                cause = "authentication_rejected"
+            else:
+                cause = "server_error"
             log(
-                f"POST ok reason={reason} url={SYNC_URL} status={resp.status} "
+                f"HTTPError reason={reason} cause={cause} url={SYNC_URL} "
+                f"status={e.code} reason={e.reason} attempt={attempt} "
                 f"duration_ms={duration_ms(post_started)} step=post_sync_full "
-                f"generation_id={generation_id} body_bytes={len(body.encode('utf-8'))}"
+                f"body_bytes={len(body.encode('utf-8'))}"
             )
-        return {
-            "ok": True,
-            "cause": "",
-            "status": int(resp.status),
-            "generation_id": generation_id,
-        }
-    except HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
-        cause = "authentication_rejected" if e.code in {401, 403} else "server_error"
-        log(
-            f"HTTPError reason={reason} cause={cause} url={SYNC_URL} "
-            f"status={e.code} reason={e.reason} "
-            f"duration_ms={duration_ms(post_started)} step=post_sync_full body_bytes={len(body.encode('utf-8'))}"
-        )
-        return {"ok": False, "cause": cause, "status": int(e.code)}
-    except URLError as e:
-        log(
-            f"URLError reason={reason} cause=network_error url={SYNC_URL} "
-            f"reason={e.reason} duration_ms={duration_ms(post_started)} step=post_sync_full"
-        )
-        return {"ok": False, "cause": "network_error"}
-    except Exception as e:
-        log(
-            f"Exception POST reason={reason} cause=network_error url={SYNC_URL} "
-            f"{type(e).__name__}: {e} duration_ms={duration_ms(post_started)} "
-            "step=post_sync_full"
-        )
-        return {"ok": False, "cause": "network_error"}
+            return {
+                "ok": False,
+                "cause": cause,
+                "status": int(e.code),
+                "attempts": attempt,
+            }
+        except URLError as e:
+            log(
+                f"URLError reason={reason} cause=network_error url={SYNC_URL} "
+                f"reason={e.reason} attempt={attempt} "
+                f"duration_ms={duration_ms(post_started)} step=post_sync_full"
+            )
+            return {"ok": False, "cause": "network_error", "attempts": attempt}
+        except Exception as e:
+            log(
+                f"Exception POST reason={reason} cause=network_error url={SYNC_URL} "
+                f"{type(e).__name__}: {e} attempt={attempt} "
+                f"duration_ms={duration_ms(post_started)} step=post_sync_full"
+            )
+            return {"ok": False, "cause": "network_error", "attempts": attempt}
+
+    return {
+        "ok": False,
+        "cause": "backend_temporarily_unavailable",
+        "attempts": SNAPSHOT_MAX_ATTEMPTS,
+    }
 
 
 def post_snapshot_payload(payload_dict: dict, reason: str) -> bool:
@@ -2112,51 +2216,73 @@ def post_full_snapshot(reason: str) -> bool:
 
 def sync_full_snapshot_now() -> None:
     log("manual full snapshot sync requested")
+    pipeline_owner = "manual_full_sync"
     decision = publication_decision("manual")
     if not decision["allowed"]:
         log(f"manual full snapshot skipped reason={decision['reason']} mode={decision['mode']}")
         showInfo(f"Publicacao bloqueada: {decision['reason']} (modo {decision['mode']}).")
         return
-    upload_result = post_full_snapshot_result("manual_full_sync")
+    acquisition = acquire_sync_pipeline(pipeline_owner)
+    if not acquisition["acquired"]:
+        showInfo(sync_pipeline_busy_message())
+        return
+    try:
+        upload_result = post_full_snapshot_result("manual_full_sync")
+    except Exception as e:
+        release_sync_pipeline(pipeline_owner)
+        log(f"manual full snapshot exception {type(e).__name__}: {e}")
+        showInfo(f"Falha ao enviar snapshot completo. Veja o log: {LOG_FILE}")
+        return
     if not upload_result.get("ok"):
+        release_sync_pipeline(pipeline_owner)
         showInfo(snapshot_failure_message(upload_result))
         return
 
     def after_media_publish(result, error) -> None:
-        if error is not None:
-            log(f"manual full snapshot media publish failed {type(error).__name__}: {error}")
-            showInfo(
-                "Snapshot completo enviado, mas a publicacao de midia falhou.\n"
-                f"Veja o log: {LOG_FILE}"
-            )
-            return
+        try:
+            if error is not None:
+                log(f"manual full snapshot media publish failed {type(error).__name__}: {error}")
+                showInfo(
+                    "Snapshot completo enviado, mas a publicacao de midia falhou.\n"
+                    f"Veja o log: {LOG_FILE}"
+                )
+                return
 
-        if not result or not result.get("ok"):
-            log(
-                "manual full snapshot media publish failed "
-                f"error={result.get('error') if result else 'missing_result'} "
-                f"command={result.get('command', '') if result else ''}"
-            )
-            showInfo(
-                "Snapshot completo enviado, mas a publicacao de midia falhou.\n"
-                f"Veja o log: {LOG_FILE}"
-            )
-            return
+            if not result or not result.get("ok"):
+                log(
+                    "manual full snapshot media publish failed "
+                    f"error={result.get('error') if result else 'missing_result'} "
+                    f"command={result.get('command', '') if result else ''}"
+                )
+                showInfo(
+                    "Snapshot completo enviado, mas a publicacao de midia falhou.\n"
+                    f"Veja o log: {LOG_FILE}"
+                )
+                return
 
-        showInfo("Snapshot completo enviado para o backend e midia publicada.")
+            showInfo("Snapshot completo enviado para o backend e midia publicada.")
+        finally:
+            release_sync_pipeline(pipeline_owner)
 
-    start_media_publish_step(
-        reason="manual_full_sync_media_publish",
-        step_label="Publicando midia do snapshot completo",
-        on_done=after_media_publish,
-        dry_run=False,
-        show_progress=True,
-    )
+    try:
+        schedule_result = start_media_publish_step(
+            reason="manual_full_sync_media_publish",
+            step_label="Publicando midia do snapshot completo",
+            on_done=after_media_publish,
+            dry_run=False,
+            show_progress=True,
+        )
+    except Exception:
+        release_sync_pipeline(pipeline_owner)
+        raise
+    if schedule_result.get("status") != "queued":
+        release_sync_pipeline(pipeline_owner)
 
 
 def sync_everything_now() -> None:
     global COMBINED_SYNC_IN_FLIGHT
 
+    pipeline_owner = "manual_combined_sync"
     decision = publication_decision("manual")
     if not decision["allowed"]:
         log(f"manual combined sync skipped reason={decision['reason']} mode={decision['mode']}")
@@ -2171,8 +2297,9 @@ def sync_everything_now() -> None:
         showInfo(authentication_required_message())
         return
 
-    if COMBINED_SYNC_IN_FLIGHT:
-        showInfo("Sincronizacao completa ja esta em andamento.")
+    acquisition = acquire_sync_pipeline(pipeline_owner)
+    if not acquisition["acquired"]:
+        showInfo(sync_pipeline_busy_message())
         return
 
     COMBINED_SYNC_IN_FLIGHT = True
@@ -2268,13 +2395,15 @@ def sync_everything_now() -> None:
             "warnings": warnings,
         }, final_payload)
 
-    def finish_from_result(result=None, error=None) -> None:
+    def finish_from_result(result=None, error=None, release_pipeline: bool = True) -> None:
         global COMBINED_SYNC_IN_FLIGHT
 
         if progress_started:
             progress_finish()
 
         COMBINED_SYNC_IN_FLIGHT = False
+        if release_pipeline:
+            release_sync_pipeline(pipeline_owner)
 
         if error is not None:
             log(f"manual combined sync exception {type(error).__name__}: {error}")
@@ -2301,10 +2430,28 @@ def sync_everything_now() -> None:
         showInfo(build_message(result))
 
     def finish_with_media(result: dict, reason: str) -> None:
+        def after_media_publish(media_result, media_error) -> None:
+            try:
+                if media_error is not None:
+                    log(
+                        "manual combined media publish failed "
+                        f"{type(media_error).__name__}: {media_error}"
+                    )
+                elif not media_result or not media_result.get("ok"):
+                    log(
+                        "manual combined media publish failed "
+                        f"error={media_result.get('error') if media_result else 'missing_result'}"
+                    )
+                else:
+                    log("manual combined media publish concluida")
+            finally:
+                release_sync_pipeline(pipeline_owner)
+
         set_progress("Agendando publicacao de midia em segundo plano...", 3)
         publish_schedule = schedule_media_publish_background(
             reason=reason,
             step_label="Publicando midia em segundo plano",
+            on_done=after_media_publish,
             dry_run=False,
             show_progress=False,
         )
@@ -2316,7 +2463,11 @@ def sync_everything_now() -> None:
                 "Publicacao de midia e rebuild remoto agendados em segundo plano."
             )
         set_progress("Concluido.", 5)
-        finish_from_result(result, None)
+        finish_from_result(
+            result,
+            None,
+            release_pipeline=publish_schedule.get("status") != "queued",
+        )
 
     taskman = getattr(mw, "taskman", None)
     run_in_background = getattr(taskman, "run_in_background", None) if taskman is not None else None
@@ -2490,6 +2641,7 @@ def setup_anki_gpt_menu() -> None:
 
 def on_sync_did_finish() -> None:
     log("hook sync_did_finish disparou")
+    pipeline_owner = "anki_sync_did_finish"
     decision = publication_decision("anki_sync_did_finish")
     log(
         "auto publish decision "
@@ -2498,39 +2650,63 @@ def on_sync_did_finish() -> None:
     )
     if not decision["allowed"]:
         return
-    if not post_full_snapshot("anki_sync_did_finish"):
+    acquisition = acquire_sync_pipeline(pipeline_owner)
+    if not acquisition["acquired"]:
+        return
+    try:
+        snapshot_ok = post_full_snapshot("anki_sync_did_finish")
+    except Exception as e:
+        log(f"hook snapshot exception {type(e).__name__}: {e}")
+        release_sync_pipeline(pipeline_owner)
+        return
+    if not snapshot_ok:
+        release_sync_pipeline(pipeline_owner)
+        return
+
+    try:
+        process_tagging_queue()
+        if organization_module is None:
+            log(f"organization queue unavailable: {ORGANIZATION_IMPORT_ERROR}")
+        else:
+            log(
+                "organization sync hook delegating "
+                f"module_file={getattr(organization_module, '__file__', '')}"
+            )
+            organization_module.process_organization_queue()
+    except Exception as e:
+        log(f"hook queue processing failed {type(e).__name__}: {e}")
+        release_sync_pipeline(pipeline_owner)
         return
 
     def after_hook_media_publish(result, error) -> None:
-        if error is not None:
-            log(f"hook media publish failed {type(error).__name__}: {error}")
-            return
-        if not result or not result.get("ok"):
-            log(
-                "hook media publish failed "
-                f"error={result.get('error') if result else 'missing_result'} "
-                f"command={result.get('command', '') if result else ''}"
-            )
-            return
-        log("hook media publish concluida")
+        try:
+            if error is not None:
+                log(f"hook media publish failed {type(error).__name__}: {error}")
+                return
+            if not result or not result.get("ok"):
+                log(
+                    "hook media publish failed "
+                    f"error={result.get('error') if result else 'missing_result'} "
+                    f"command={result.get('command', '') if result else ''}"
+                )
+                return
+            log("hook media publish concluida")
+        finally:
+            release_sync_pipeline(pipeline_owner)
 
-    start_media_publish_step(
-        reason="anki_sync_did_finish_media_publish",
-        step_label="Publicando midia do sync automatico",
-        on_done=after_hook_media_publish,
-        dry_run=False,
-        show_progress=False,
-    )
-
-    process_tagging_queue()
-    if organization_module is None:
-        log(f"organization queue unavailable: {ORGANIZATION_IMPORT_ERROR}")
-    else:
-        log(
-            "organization sync hook delegating "
-            f"module_file={getattr(organization_module, '__file__', '')}"
+    try:
+        schedule_result = start_media_publish_step(
+            reason="anki_sync_did_finish_media_publish",
+            step_label="Publicando midia do sync automatico",
+            on_done=after_hook_media_publish,
+            dry_run=False,
+            show_progress=False,
         )
-        organization_module.process_organization_queue()
+    except Exception:
+        release_sync_pipeline(pipeline_owner)
+        raise
+    if schedule_result.get("status") != "queued":
+        release_sync_pipeline(pipeline_owner)
 
 
 gui_hooks.sync_did_finish.append(on_sync_did_finish)

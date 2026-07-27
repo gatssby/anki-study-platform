@@ -728,6 +728,68 @@ def test_full_snapshot_publish_activates_complete_generation(query_api, monkeypa
     assert len(list(data.glob("*.json"))) == 1
 
 
+def test_full_snapshot_retry_is_idempotent_and_preserves_generation(
+    query_api,
+    monkeypatch,
+    tmp_path,
+):
+    _state, data, _media = configure_query_state_paths(query_api, monkeypatch, tmp_path)
+    payload = {
+        "generated_at": "2026-07-27T00:00:00+00:00",
+        "timestamp": "2026-07-27T00:00:00+00:00",
+        "snapshot_version": 3,
+        "notes": [{"note_id": 1, "fields": {"Front": "fixture"}, "cards": [{"card_id": 2}]}],
+        "decks": [{"id": 10, "name": "Fixture"}],
+        "total_notes": 1,
+        "total_cards": 1,
+        "total_decks": 1,
+    }
+
+    first = query_api.publish_full_snapshot_payload(payload)
+    second = query_api.publish_full_snapshot_payload(
+        {**payload, "generated_at": "2026-07-27T00:00:02+00:00", "timestamp": "later"}
+    )
+
+    assert first["idempotent_replay"] is False
+    assert second["idempotent_replay"] is True
+    assert second["generation_id"] == first["generation_id"]
+    assert len(list(data.glob("*.json"))) == 1
+
+
+def test_concurrent_identical_snapshot_uploads_coalesce_to_one_generation(
+    query_api,
+    monkeypatch,
+    tmp_path,
+):
+    _state, data, _media = configure_query_state_paths(query_api, monkeypatch, tmp_path)
+    payload = {
+        "snapshot_version": 3,
+        "notes": [{"note_id": 1, "fields": {}, "cards": []}],
+        "decks": [],
+        "total_notes": 1,
+        "total_cards": 1,
+        "total_decks": 0,
+    }
+    barrier = threading.Barrier(3)
+    results = []
+
+    def publish():
+        barrier.wait()
+        results.append(query_api.publish_full_snapshot_payload(payload))
+
+    threads = [threading.Thread(target=publish) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    barrier.wait()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert len(results) == 2
+    assert len({result["generation_id"] for result in results}) == 1
+    assert sorted(result["idempotent_replay"] for result in results) == [False, True]
+    assert len(list(data.glob("*.json"))) == 1
+
+
 def test_incomplete_or_corrupt_generation_never_replaces_verified_cache(query_api, tmp_path):
     state_store, cache = generation_cache(query_api, tmp_path)
     manifest = state_store.publish_generation(tmp_path, generation_objects("good"))
@@ -1677,6 +1739,9 @@ def test_snapshot_publish_requires_generation_confirmation_and_pause_precedes_ne
         HTTPError=RuntimeError,
         URLError=RuntimeError,
         urlopen=lambda *_args, **_kwargs: Response(b'{"generation_id":"gen-fixture"}'),
+        SNAPSHOT_MAX_ATTEMPTS=3,
+        SNAPSHOT_RETRY_BACKOFF_SECONDS=0.5,
+        SNAPSHOT_RETRYABLE_HTTP_STATUSES={502, 503, 504},
     )
     result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
     assert result == {
@@ -1684,6 +1749,7 @@ def test_snapshot_publish_requires_generation_confirmation_and_pause_precedes_ne
         "cause": "",
         "status": 200,
         "generation_id": "gen-fixture",
+        "attempts": 1,
     }
     assert namespace["post_snapshot_payload"]({"fixture": True}, "fixture") is True
     assert namespace["LAST_CONFIRMED_GENERATION_ID"] == "gen-fixture"
@@ -1773,13 +1839,149 @@ def test_snapshot_authentication_rejection_preserves_cause_without_logging_secre
         HTTPError=RejectedError,
         URLError=NetworkError,
         urlopen=lambda *_args, **_kwargs: (_ for _ in ()).throw(RejectedError()),
+        SNAPSHOT_MAX_ATTEMPTS=3,
+        SNAPSHOT_RETRY_BACKOFF_SECONDS=0.5,
+        SNAPSHOT_RETRYABLE_HTTP_STATUSES={502, 503, 504},
     )
 
     result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
 
-    assert result == {"ok": False, "cause": "authentication_rejected", "status": 401}
+    assert result == {
+        "ok": False,
+        "cause": "authentication_rejected",
+        "status": 401,
+        "attempts": 1,
+    }
     assert secret not in "\n".join(events)
     assert any("cause=authentication_rejected" in event for event in events)
+
+
+def test_snapshot_retry_502_then_200_reuses_payload_without_duplicate_side_effects(tmp_path):
+    class RetryableError(Exception):
+        code = 502
+        reason = "Bad Gateway"
+
+        @staticmethod
+        def read():
+            return b"gateway unavailable"
+
+    class NetworkError(Exception):
+        pass
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        @staticmethod
+        def read():
+            return b'{"generation_id":"gen-reused"}'
+
+    requests = []
+    sleeps = []
+    hashes = []
+    responses = [RetryableError(), Response()]
+
+    def request_factory(*args, **kwargs):
+        requests.append((args, kwargs))
+        return (args, kwargs)
+
+    def urlopen(_request, timeout):
+        assert timeout == 180
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    namespace = addon_function_namespace(
+        {"post_snapshot_payload_result"},
+        AUTO_PUBLISH_PAUSE_FILE=tmp_path / "pause_auto_publish",
+        LAST_POSTED_SNAPSHOT_HASH="",
+        LAST_CONFIRMED_GENERATION_ID="",
+        load_tagging_token=lambda: "fixture-token",
+        log=lambda _message: None,
+        snapshot_content_hash=lambda payload: hashes.append(payload) or "fixture-hash",
+        json=json,
+        Request=request_factory,
+        SYNC_URL="https://example.invalid/sync/full",
+        time=types.SimpleNamespace(perf_counter=lambda: 1.0, sleep=sleeps.append),
+        duration_ms=lambda _started: 1,
+        HTTPError=RetryableError,
+        URLError=NetworkError,
+        urlopen=urlopen,
+        SNAPSHOT_MAX_ATTEMPTS=3,
+        SNAPSHOT_RETRY_BACKOFF_SECONDS=0.5,
+        SNAPSHOT_RETRYABLE_HTTP_STATUSES={502, 503, 504},
+    )
+
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "manual")
+
+    assert result["ok"] is True
+    assert result["attempts"] == 2
+    assert result["generation_id"] == "gen-reused"
+    assert sleeps == [0.5]
+    assert len(hashes) == 1
+    assert len(requests) == 2
+    assert requests[0][1]["data"] == requests[1][1]["data"]
+
+
+def test_snapshot_three_502s_returns_temporary_backend_message(tmp_path):
+    class RetryableError(Exception):
+        code = 502
+        reason = "Bad Gateway"
+
+        @staticmethod
+        def read():
+            return b"gateway unavailable"
+
+    class NetworkError(Exception):
+        pass
+
+    sleeps = []
+    events = []
+    namespace = addon_function_namespace(
+        {
+            "post_snapshot_payload_result",
+            "snapshot_failure_message",
+        },
+        AUTO_PUBLISH_PAUSE_FILE=tmp_path / "pause_auto_publish",
+        LAST_POSTED_SNAPSHOT_HASH="",
+        LAST_CONFIRMED_GENERATION_ID="",
+        load_tagging_token=lambda: "fixture-token",
+        log=events.append,
+        snapshot_content_hash=lambda _payload: "fixture-hash",
+        json=json,
+        Request=lambda *args, **kwargs: (args, kwargs),
+        SYNC_URL="https://example.invalid/sync/full",
+        LOG_FILE=tmp_path / "canonical.log",
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN",
+        TAGGING_TOKEN_FILE=tmp_path / "tagging_token.txt",
+        time=types.SimpleNamespace(perf_counter=lambda: 1.0, sleep=sleeps.append),
+        duration_ms=lambda _started: 1,
+        HTTPError=RetryableError,
+        URLError=NetworkError,
+        urlopen=lambda *_args, **_kwargs: (_ for _ in ()).throw(RetryableError()),
+        SNAPSHOT_MAX_ATTEMPTS=3,
+        SNAPSHOT_RETRY_BACKOFF_SECONDS=0.5,
+        SNAPSHOT_RETRYABLE_HTTP_STATUSES={502, 503, 504},
+    )
+
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "manual")
+    message = namespace["snapshot_failure_message"](result)
+
+    assert result == {
+        "ok": False,
+        "cause": "backend_temporarily_unavailable",
+        "status": 502,
+        "attempts": 3,
+    }
+    assert sleeps == [0.5, 1.0]
+    assert message.startswith("Backend temporariamente indisponível.")
+    assert sum("retrying" in event for event in events) == 2
 
 
 def test_manual_missing_authentication_message_is_clear_and_canonical():
@@ -1853,13 +2055,138 @@ def test_automatic_sync_missing_token_logs_without_popup_or_collection_access():
             "configured": True,
             "reason": "after_anki_sync",
         },
+        acquire_sync_pipeline=lambda owner: {"acquired": True, "active_owner": owner},
+        release_sync_pipeline=lambda owner: events.append(f"released:{owner}") or True,
         post_full_snapshot=lambda _reason: False,
     )
 
     namespace["on_sync_did_finish"]()
 
     assert any("hook sync_did_finish" in event for event in events)
+    assert "released:anki_sync_did_finish" in events
     assert "showInfo" not in namespace
+
+
+def test_sync_pipeline_coalesces_manual_during_automatic_or_media_and_releases():
+    events = []
+    namespace = addon_function_namespace(
+        {
+            "acquire_sync_pipeline",
+            "release_sync_pipeline",
+            "sync_pipeline_busy_message",
+        },
+        threading=threading,
+        SYNC_PIPELINE_LOCK=threading.Lock(),
+        SYNC_PIPELINE_OWNER="",
+        SYNC_PIPELINE_COALESCED_REQUESTS=0,
+        MEDIA_PUBLISH_IN_FLIGHT=False,
+        log=events.append,
+    )
+
+    automatic = namespace["acquire_sync_pipeline"]("anki_sync_did_finish")
+    manual_during_automatic = namespace["acquire_sync_pipeline"]("manual_combined_sync")
+    assert automatic["acquired"] is True
+    assert manual_during_automatic == {
+        "acquired": False,
+        "coalesced": True,
+        "requested_owner": "manual_combined_sync",
+        "active_owner": "anki_sync_did_finish",
+    }
+    assert namespace["release_sync_pipeline"]("anki_sync_did_finish") is True
+
+    namespace["MEDIA_PUBLISH_IN_FLIGHT"] = True
+    manual_during_media = namespace["acquire_sync_pipeline"]("manual_combined_sync")
+    assert manual_during_media["acquired"] is False
+    assert manual_during_media["active_owner"] == "media_publish"
+    namespace["MEDIA_PUBLISH_IN_FLIGHT"] = False
+
+    manual = namespace["acquire_sync_pipeline"]("manual_combined_sync")
+    assert manual["acquired"] is True
+    assert namespace["release_sync_pipeline"]("manual_combined_sync") is True
+    assert namespace["SYNC_PIPELINE_OWNER"] == ""
+    assert namespace["SYNC_PIPELINE_COALESCED_REQUESTS"] == 2
+    assert namespace["sync_pipeline_busy_message"]() == "Sincronização já em andamento."
+    assert sum("sync pipeline coalesced" in event for event in events) == 2
+
+
+def test_two_quick_manual_clicks_are_blocked_before_collection_or_side_effects():
+    messages = []
+    namespace = addon_function_namespace(
+        {"sync_everything_now"},
+        COMBINED_SYNC_IN_FLIGHT=False,
+        publication_decision=lambda _trigger: {
+            "allowed": True,
+            "mode": "manual",
+            "reason": "manual_request",
+        },
+        load_tagging_token=lambda: "fixture-token",
+        acquire_sync_pipeline=lambda _owner: {
+            "acquired": False,
+            "coalesced": True,
+            "active_owner": "anki_sync_did_finish",
+        },
+        sync_pipeline_busy_message=lambda: "Sincronização já em andamento.",
+        showInfo=messages.append,
+        log=lambda _message: None,
+    )
+
+    namespace["sync_everything_now"]()
+    namespace["sync_everything_now"]()
+
+    assert messages == [
+        "Sincronização já em andamento.",
+        "Sincronização já em andamento.",
+    ]
+    assert namespace["COMBINED_SYNC_IN_FLIGHT"] is False
+    assert "build_payload" not in namespace
+    assert "process_organization_queue_for_sync" not in namespace
+    assert "schedule_media_publish_background" not in namespace
+
+
+def test_combined_sync_releases_pipeline_lock_after_exception():
+    messages = []
+    state = {"owner": ""}
+
+    def acquire(owner):
+        state["owner"] = owner
+        return {"acquired": True}
+
+    def release(owner):
+        if state["owner"] == owner:
+            state["owner"] = ""
+            return True
+        return False
+
+    namespace = addon_function_namespace(
+        {"sync_everything_now"},
+        COMBINED_SYNC_IN_FLIGHT=False,
+        COMBINED_SYNC_PROGRESS_MAX=5,
+        LOG_FILE=Path("fixture.log"),
+        mw=types.SimpleNamespace(taskman=None),
+        publication_decision=lambda _trigger: {
+            "allowed": True,
+            "mode": "manual",
+            "reason": "manual_request",
+        },
+        load_tagging_token=lambda: "fixture-token",
+        acquire_sync_pipeline=acquire,
+        release_sync_pipeline=release,
+        sync_pipeline_busy_message=lambda: "Sincronização já em andamento.",
+        showInfo=messages.append,
+        log=lambda _message: None,
+        progress_start=lambda *_args, **_kwargs: False,
+        progress_update=lambda *_args, **_kwargs: None,
+        progress_finish=lambda: None,
+        run_on_main_thread=lambda callback: callback(),
+        build_payload=lambda: (_ for _ in ()).throw(RuntimeError("fixture failure")),
+    )
+
+    namespace["sync_everything_now"]()
+
+    assert state["owner"] == ""
+    assert namespace["COMBINED_SYNC_IN_FLIGHT"] is False
+    assert len(messages) == 1
+    assert "Erro inesperado" in messages[0]
 
 
 def test_combined_snapshot_failure_preserves_real_cause_and_canonical_log_path():
@@ -1929,6 +2256,11 @@ def test_media_publish_smoke_test_uses_canonical_token_without_command_argument(
     assert 'Path("$BASE/tagging_token.txt")' in rebuild_script
     assert 'headers={"X-Tagging-Token": token}' in rebuild_script
     assert "curl -fsS http://127.0.0.1:8767" not in rebuild_script
+    assert "query_api_restart=0" in rebuild_script
+    assert "tmux kill-session -t anki-query-api" not in rebuild_script
+    assert 'kill "$PID"' not in rebuild_script
+    assert '"snapshot_content_hash": snapshot_content_hash' in rebuild_script
+    assert '"snapshot_content_hash": status.get("snapshot_content_hash")' in rebuild_script
 
     authentication_docs = (ROOT / "docs" / "AUTHENTICATION.md").read_text(encoding="utf-8")
     assert "ambiente tem precedência" in authentication_docs
@@ -2190,6 +2522,24 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
             "generation_id": "gen-fixture",
         }
 
+    pipeline = {"owner": ""}
+    media_schedules = []
+
+    def acquire_pipeline(owner):
+        pipeline["owner"] = owner
+        return {"acquired": True, "active_owner": owner}
+
+    def release_pipeline(owner):
+        if pipeline["owner"] == owner:
+            pipeline["owner"] = ""
+            return True
+        return False
+
+    def schedule_media(**kwargs):
+        media_schedules.append(kwargs["reason"])
+        kwargs["on_done"]({"ok": True}, None)
+        return {"status": "queued"}
+
     namespace = {
         "COMBINED_SYNC_IN_FLIGHT": False,
         "COMBINED_SYNC_PROGRESS_MAX": 5,
@@ -2200,6 +2550,9 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
         "publication_decision": lambda _trigger: {"allowed": True, "mode": "manual", "reason": "manual_allowed"},
         "load_tagging_token": lambda: "fixture-token",
         "authentication_required_message": lambda: "fixture auth required",
+        "acquire_sync_pipeline": acquire_pipeline,
+        "release_sync_pipeline": release_pipeline,
+        "sync_pipeline_busy_message": lambda: "Sincronização já em andamento.",
         "progress_start": lambda *_args, **_kwargs: False,
         "progress_update": lambda *_args, **_kwargs: None,
         "progress_finish": lambda: None,
@@ -2211,7 +2564,7 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
         "organization_summary_failed": lambda summary: bool(summary.get("errors")),
         "duration_ms": lambda _started: 0,
         "time": types.SimpleNamespace(perf_counter=lambda: 0),
-        "schedule_media_publish_background": lambda **_kwargs: {"status": "queued"},
+        "schedule_media_publish_background": schedule_media,
     }
     exec(compile(module, "<sync-harness>", "exec"), namespace)
     namespace["sync_everything_now"]()
@@ -2222,6 +2575,8 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
     assert upload_threads
     assert all(thread_id != main_thread for thread_id in upload_threads)
     assert namespace["COMBINED_SYNC_IN_FLIGHT"] is False
+    assert pipeline["owner"] == ""
+    assert media_schedules == ["manual_combined_after_initial_sync"]
 
 
 def test_explicit_background_worker_call_graph_never_reaches_mw_col():
