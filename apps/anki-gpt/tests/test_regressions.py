@@ -1,5 +1,6 @@
 import importlib.util
 import ast
+import zipfile
 from datetime import datetime, timedelta, timezone
 import json
 import http.client
@@ -30,6 +31,47 @@ def load_module(name: str, path: Path):
         sys.modules.pop(name, None)
         raise
     return module
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "module_name"),
+    [
+        ("apps/anki-gpt/addon-local/note_preconditions.py", "addon_note_contract_loader"),
+        ("services/anki-api/note_preconditions.py", "api_note_contract_loader"),
+    ],
+)
+def test_development_note_precondition_loaders_resolve_monorepo(
+    relative_path, module_name
+):
+    module = load_module(module_name, REPO_ROOT / relative_path)
+    assert module.note_content_hash(
+        model_id=1,
+        field_names=["Text"],
+        fields={"Text": "fixture"},
+        tags=[],
+    )
+
+
+def test_packaged_addon_contains_self_contained_canonical_note_contract(tmp_path):
+    output = tmp_path / "anki-gpt-addon.zip"
+    subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "package_addon.py"),
+            "--output",
+            str(output),
+        ],
+        check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    with zipfile.ZipFile(output) as archive:
+        bundled = archive.read("note_preconditions.py")
+    canonical = (
+        REPO_ROOT / "packages" / "anki-contracts" / "note_preconditions.py"
+    ).read_bytes()
+    assert bundled == canonical
 
 
 @pytest.fixture(scope="module")
@@ -285,6 +327,156 @@ def test_backend_preserves_valid_note_preconditions(query_api):
     assert update["expected_mod"] == 2
 
 
+def snapshot_note_fixture(**overrides):
+    note = {
+        "note_id": 123,
+        "model_id": 456,
+        "mod": 789,
+        "usn": 10,
+        "deck": "Fixture",
+        "root_deck": "Fixture",
+        "note_type": "prettify-minimal-cloze",
+        "kind": "basic",
+        "tags": ["FO", "unicode"],
+        "field_names": ["Text", "Back Extra"],
+        "fields": {
+            "Text": "Água\r\n<b>exata</b>",
+            "Back Extra": "",
+        },
+        "compare_text": "agua exata",
+        "cards": [{
+            "card_id": 999,
+            "note_id": 123,
+            "deck_id": 1,
+            "deck_name": "Fixture",
+            "ord": 0,
+            "queue": 0,
+            "type": 0,
+        }],
+    }
+    note.update(overrides)
+    return note
+
+
+def assert_complete_note_precondition(payload):
+    expected = {
+        "expected_content_hash",
+        "expected_mod",
+        "expected_usn",
+        "expected_model_id",
+    }
+    assert expected <= payload.keys()
+    assert len(payload["expected_content_hash"]) == 64
+    assert payload["expected_mod"] == payload["mod"]
+    assert payload["expected_usn"] == payload["usn"]
+    assert payload["expected_model_id"] == payload["model_id"]
+    assert payload["precondition"] == {
+        key: payload[key]
+        for key in expected
+    }
+
+
+def test_snapshot_v3_requires_complete_note_precondition_source(query_api):
+    note = snapshot_note_fixture()
+    query_api.validate_snapshot_note_precondition_source(note)
+    for key in ("model_id", "mod", "usn", "field_names", "fields", "tags"):
+        invalid = dict(note)
+        invalid.pop(key)
+        with pytest.raises(ValueError, match="snapshot_note_"):
+            query_api.validate_snapshot_note_precondition_source(invalid)
+
+
+def test_search_materialization_and_detail_publish_complete_preconditions(query_api):
+    note = snapshot_note_fixture()
+    media = {"123": {"has_images": False}}
+
+    search_note = query_api.build_card(note, media)
+    materialized_note = query_api.build_materialized_note(note)
+    detailed_note = query_api.build_note_info(note)
+    materialized_card = query_api.build_materialized_card(note["cards"][0], note)
+    detailed_card = query_api.build_card_info(note["cards"][0], note)
+
+    for payload in (
+        search_note,
+        materialized_note,
+        detailed_note,
+        materialized_card,
+        detailed_card,
+        detailed_card["note"],
+    ):
+        assert_complete_note_precondition(payload)
+
+    compact_search = query_api.build_endpoint_items_from_matches(
+        [(note["cards"][0], note)],
+        "note",
+        media,
+    )
+    assert len(compact_search) == 1
+    assert_complete_note_precondition(compact_search[0])
+
+
+def test_published_precondition_matches_executor_for_exact_content(
+    query_api, organization, monkeypatch
+):
+    note = FakeAnkiNote(
+        123,
+        {
+            "Text": "Água\r\n<b>exata</b>",
+            "Back Extra": "",
+        },
+        mid=456,
+        mod=789,
+        usn=10,
+        tags=["unicode", "FO"],
+    )
+    configure_fake_notes(organization, monkeypatch, [note])
+    executor = organization.note_precondition(note, ["Text", "Back Extra"])
+    published = query_api.snapshot_note_precondition(snapshot_note_fixture())
+    assert published == executor
+
+    normalized = query_api.normalize_update_note_fields_payload({
+        "note_updates": [{
+            "note_id": 123,
+            "fields": {"Text": "{{c1::Água}}"},
+            **published,
+        }],
+        "execution_mode": "direct",
+        "dry_run": False,
+    })
+    assert normalized["note_updates"][0]["expected_content_hash"] == published["expected_content_hash"]
+
+
+def test_canonical_hash_changes_only_for_guarded_note_content(query_api):
+    original = snapshot_note_fixture()
+    base = query_api.snapshot_note_precondition(original)
+    assert base == query_api.snapshot_note_precondition(dict(original))
+
+    for changed in (
+        snapshot_note_fixture(fields={"Text": "outro", "Back Extra": ""}),
+        snapshot_note_fixture(fields={"Text": "Água\r\n<b>exata</b>", "Back Extra": "outro"}),
+        snapshot_note_fixture(model_id=457),
+        snapshot_note_fixture(tags=["FO", "outro"]),
+        snapshot_note_fixture(fields={"Text": "Água\n<b>exata</b>", "Back Extra": ""}),
+    ):
+        assert (
+            query_api.snapshot_note_precondition(changed)["expected_content_hash"]
+            != base["expected_content_hash"]
+        )
+
+    scheduling_only = snapshot_note_fixture()
+    scheduling_only["cards"][0]["due"] = 999
+    assert (
+        query_api.snapshot_note_precondition(scheduling_only)["expected_content_hash"]
+        == base["expected_content_hash"]
+    )
+
+
+def test_cloze_model_without_cloze_markup_still_gets_guarded_precondition(query_api):
+    note = snapshot_note_fixture(kind="basic")
+    assert "{{c" not in note["fields"]["Text"]
+    assert_complete_note_precondition(query_api.build_materialized_note(note))
+
+
 def test_backend_rejects_nested_note_precondition_with_expected_format(query_api):
     with pytest.raises(
         ValueError,
@@ -509,6 +701,26 @@ def test_compact_openapi_is_gpt_builder_compatible_and_preserves_23_operations()
     compatibility = schema["components"]["schemas"]["ExecutionModeCompatibility"]
     assert compatibility["properties"]["execution_mode"]["$ref"].endswith("/ExecutionMode")
     assert compatibility["properties"]["dry_run"]["type"] == "boolean"
+    note_schema = schema["components"]["schemas"]["CanonicalNoteRead"]
+    required_preconditions = {
+        "expected_content_hash",
+        "expected_mod",
+        "expected_usn",
+        "expected_model_id",
+        "precondition",
+    }
+    assert required_preconditions <= set(note_schema["required"])
+    assert (
+        schema["paths"]["/cards/materialize"]["get"]["responses"]["200"]
+        ["content"]["application/json"]["schema"]["$ref"]
+        == "#/components/schemas/MaterializeResponse"
+    )
+    for route in ("/cards/by-deck", "/cards/search", "/cards/search-real"):
+        assert (
+            schema["paths"][route]["get"]["responses"]["200"]
+            ["content"]["application/json"]["schema"]["$ref"]
+            == "#/components/schemas/NoteSearchResponse"
+        )
 
     reorder_schema = (
         schema["paths"]["/organization/reorder-order-create"]["post"]
@@ -528,6 +740,28 @@ def test_compact_openapi_is_gpt_builder_compatible_and_preserves_23_operations()
     assert len(operation_ids) == 23
     assert len(set(operation_ids)) == 23
     assert "X-Tagging-Token" not in schema_path.read_text(encoding="utf-8")
+
+
+def test_full_openapi_declares_preconditions_for_all_note_read_paths():
+    schema = json.loads(
+        (REPO_ROOT / "contracts" / "openapi" / "anki-api.openapi.json")
+        .read_text(encoding="utf-8")
+    )
+    expected_refs = {
+        "/cards/by-deck": "NoteSearchResponse",
+        "/cards/by-prefix": "NoteSearchResponse",
+        "/cards/search": "NoteSearchResponse",
+        "/cards/search-real": "NoteSearchResponse",
+        "/cards/info": "CardsInfoResponse",
+        "/notes/info": "NotesInfoResponse",
+        "/cards/materialize": "MaterializeResponse",
+    }
+    for route, component in expected_refs.items():
+        response_schema = (
+            schema["paths"][route]["get"]["responses"]["200"]
+            ["content"]["application/json"]["schema"]
+        )
+        assert response_schema["$ref"] == f"#/components/schemas/{component}"
 
 
 def test_gpt_builder_object_scanner_covers_nested_schema_locations():
@@ -738,7 +972,16 @@ def test_full_snapshot_retry_is_idempotent_and_preserves_generation(
         "generated_at": "2026-07-27T00:00:00+00:00",
         "timestamp": "2026-07-27T00:00:00+00:00",
         "snapshot_version": 3,
-        "notes": [{"note_id": 1, "fields": {"Front": "fixture"}, "cards": [{"card_id": 2}]}],
+        "notes": [{
+            "note_id": 1,
+            "model_id": 10,
+            "mod": 20,
+            "usn": 30,
+            "field_names": ["Front"],
+            "fields": {"Front": "fixture"},
+            "tags": [],
+            "cards": [{"card_id": 2}],
+        }],
         "decks": [{"id": 10, "name": "Fixture"}],
         "total_notes": 1,
         "total_cards": 1,
@@ -764,7 +1007,16 @@ def test_concurrent_identical_snapshot_uploads_coalesce_to_one_generation(
     _state, data, _media = configure_query_state_paths(query_api, monkeypatch, tmp_path)
     payload = {
         "snapshot_version": 3,
-        "notes": [{"note_id": 1, "fields": {}, "cards": []}],
+        "notes": [{
+            "note_id": 1,
+            "model_id": 10,
+            "mod": 20,
+            "usn": 30,
+            "field_names": [],
+            "fields": {},
+            "tags": [],
+            "cards": [],
+        }],
         "decks": [],
         "total_notes": 1,
         "total_cards": 1,
@@ -2920,6 +3172,40 @@ def test_update_note_fields_valid_batch_and_dry_run(organization, monkeypatch):
     assert result["errors"] == []
     assert result["affected_note_ids"] == [1, 2]
     assert [note["Text"] for note in notes] == ["A", "B"]
+
+
+def test_update_note_fields_registers_one_custom_undo_entry(
+    organization, monkeypatch
+):
+    note = FakeAnkiNote(1, {"Text": "antes"})
+    configure_fake_notes(organization, monkeypatch, [note])
+    calls = []
+    organization.mw.col.add_custom_undo_entry = (
+        lambda label: calls.append(("begin", label)) or 77
+    )
+    organization.mw.col.merge_undo_entries = (
+        lambda entry: calls.append(("merge", entry))
+    )
+    precondition = organization.note_precondition(note, ["Text"])
+    result = organization.update_note_fields(
+        [{
+            "note_id": 1,
+            "fields": {"Text": "{{c1::depois}}"},
+            **precondition,
+        }],
+        dry_run=False,
+        require_preconditions=True,
+    )
+    assert result["errors"] == []
+    assert result["undo_available"] is True
+    assert result["undo_entry"] == 77
+    assert calls == [
+        ("begin", "Anki GPT: atualizar campos de notes"),
+        ("merge", 77),
+    ]
+    compact = organization.compact_update_note_fields_result_payload(result)
+    assert compact["undo_available"] is True
+    assert compact["undo_entry"] == 77
 
 
 @pytest.mark.parametrize("invalid_index", [0, 1, 2])

@@ -2,19 +2,36 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
 import hashlib
 import json
 import threading
+from datetime import datetime, timezone
 
 from aqt import mw
 from aqt.utils import showInfo
 
+try:
+    from .runtime_paths import get_runtime_paths
+except ImportError:
+    from runtime_paths import get_runtime_paths
+
 
 PROFILE_NAME = "Anki GPT Validation"
-RESULT_PATH = Path(__file__).resolve().parent.parent / "audits" / "2026-07-11-final-validation" / "disposable_profile_results.json"
+RESULT_PATH = get_runtime_paths().state / "validation" / "disposable_profile_results.json"
 TAG = "anki-gpt-validation"
+
+
+def write_result(payload: dict) -> None:
+    RESULT_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    RESULT_PATH.parent.chmod(0o700)
+    temporary = RESULT_PATH.with_suffix(RESULT_PATH.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary.chmod(0o600)
+    temporary.replace(RESULT_PATH)
+    RESULT_PATH.chmod(0o600)
 
 
 def sha(value: str) -> str:
@@ -38,8 +55,18 @@ def find_model(required_fields: set[str], minimum_templates: int = 1, cloze: boo
 
 def ensure_custom_model(name: str, fields: list[str], templates: list[tuple[str, str, str]]):
     existing = mw.col.models.by_name(name)
-    if existing:
+    if (
+        existing
+        and model_fields(existing) == fields
+        and len(existing.get("tmpls", [])) == len(templates)
+    ):
         return existing
+    if existing:
+        base_name = name
+        suffix = 2
+        while mw.col.models.by_name(f"{base_name} {suffix}"):
+            suffix += 1
+        name = f"{base_name} {suffix}"
     models = mw.col.models
     model = models.new(name)
     for field_name in fields:
@@ -115,7 +142,7 @@ def schedule_thread_probe(report: dict, addon_module) -> None:
     report["after_tests"] = after
     report["thread_probe"] = {"status": "pending"}
     report.pop("fatal_error", None)
-    RESULT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_result(report)
     detached = json.loads(json.dumps({"profile": PROFILE_NAME, "counts": after}))
     main_thread_id = threading.get_ident()
     def worker():
@@ -143,7 +170,7 @@ def schedule_thread_probe(report: dict, addon_module) -> None:
                 probe = {"passed": False, "error": f"{type(exc).__name__}:{exc}"}
             current["thread_probe"] = probe
             current["finished_at"] = datetime.now(timezone.utc).isoformat()
-            RESULT_PATH.write_text(json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            write_result(current)
             passed = sum(1 for item in current["tests"] if item["passed"]) + int(probe.get("passed", False))
             total = len(current["tests"]) + 1
             showInfo(f"Validação descartável concluída: {passed}/{total} testes passaram.\nResultado: {RESULT_PATH}")
@@ -160,7 +187,7 @@ def resume_validation(addon_module, org, report: dict) -> None:
         note = mw.col.get_note(nid)
         model = mw.col.models.get(note.mid)
         name = str(model.get("name", ""))
-        if name == "Anki GPT Validation Removable Field":
+        if name.startswith("Anki GPT Validation Removable Field"):
             removed_id = nid
         elif int(model.get("type", 0) or 0) == 1:
             cloze_ids.append(nid)
@@ -229,7 +256,7 @@ def run_disposable_validation(addon_module, organization_module) -> None:
             except Exception as exc:
                 previous["fatal_error"] = f"{type(exc).__name__}: {exc}"
                 previous["finished_at"] = datetime.now(timezone.utc).isoformat()
-                RESULT_PATH.write_text(json.dumps(previous, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                write_result(previous)
                 showInfo(f"Retomada da validação falhou: {previous['fatal_error']}")
             return
     results: list[dict] = []
@@ -277,7 +304,29 @@ def run_disposable_validation(addon_module, organization_module) -> None:
         pre = dry["preconditions"][0]
         record(results, "dry_run_valido", not dry["errors"] and dry["changed_count"] == 1 and note_state(nid)["fields"]["Back Extra"]["sha256"] == sha("Fixture extra"))
         applied = update(org, nid, {"Back Extra": "Fixture applied"}, dry_run=False, precondition=pre)
-        record(results, "apply_note_artificial", not applied["errors"] and note_state(nid)["fields"]["Back Extra"]["sha256"] == sha("Fixture applied"))
+        record(
+            results,
+            "apply_note_artificial",
+            not applied["errors"]
+            and applied.get("undo_available") is True
+            and note_state(nid)["fields"]["Back Extra"]["sha256"]
+            == sha("Fixture applied"),
+        )
+        mw.col.undo()
+        record(
+            results,
+            "undo_note_artificial",
+            note_state(nid)["fields"]["Back Extra"]["sha256"]
+            == sha("Fixture extra"),
+        )
+        reapplied = update(
+            org,
+            nid,
+            {"Back Extra": "Fixture applied"},
+            dry_run=False,
+            precondition=precondition_for(org, nid),
+        )
+        record(results, "reapply_apos_undo", not reapplied["errors"])
 
         # 3: entirely valid batch.
         batch_ids = created_ids[2:4]
@@ -395,8 +444,7 @@ def run_disposable_validation(addon_module, organization_module) -> None:
             "tests": results,
             "thread_probe": {"status": "pending"},
         }
-        RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        RESULT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_result(report)
 
         detached = json.loads(json.dumps({"profile": PROFILE_NAME, "counts": after}))
         main_thread_id = threading.get_ident()
@@ -425,7 +473,7 @@ def run_disposable_validation(addon_module, organization_module) -> None:
                     probe = {"passed": False, "error": f"{type(exc).__name__}:{exc}"}
                 current["thread_probe"] = probe
                 current["finished_at"] = datetime.now(timezone.utc).isoformat()
-                RESULT_PATH.write_text(json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                write_result(current)
                 passed = sum(1 for item in current["tests"] if item["passed"]) + int(probe.get("passed", False))
                 total = len(current["tests"]) + 1
                 showInfo(f"Validação descartável concluída: {passed}/{total} testes passaram.\nResultado: {RESULT_PATH}")
@@ -439,6 +487,5 @@ def run_disposable_validation(addon_module, organization_module) -> None:
             "fatal_error": f"{type(exc).__name__}: {exc}",
             "finished_at": datetime.now(timezone.utc).isoformat(),
         }
-        RESULT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        RESULT_PATH.write_text(json.dumps(failure, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_result(failure)
         showInfo(f"Validação descartável falhou: {failure['fatal_error']}\nResultado: {RESULT_PATH}")
