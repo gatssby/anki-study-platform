@@ -3,10 +3,14 @@ from __future__ import annotations
 import sqlite3
 import unittest
 from datetime import date
+from unittest.mock import patch
 
-from app.dashboard import build_today_rows
+from app.dashboard import (
+    DuplicateDailyAssignmentError,
+    build_today_rows,
+    first_unseen_excluding,
+)
 from scripts.validate_fo_daily_assignments import validate_daily_assignments
-
 
 SCHEMA = """
 CREATE TABLE lessons (
@@ -107,6 +111,49 @@ class FoDailyAssignmentValidatorTest(unittest.TestCase):
             as_of_date=date(2026, 7, 9),
         )
 
+    def insert_bio_queue(
+        self,
+        *,
+        recommended_date: str = "2026-07-09",
+    ) -> None:
+        for lesson_number in range(1, 7):
+            self.insert_lesson(
+                f"BIO1A{lesson_number}",
+                f"W01-D{lesson_number}-S1",
+                subject="BIO",
+                recommended_date="2026-07-08",
+                is_seen=1,
+                slot_index=lesson_number,
+            )
+        self.insert_lesson(
+            "BIO1A7",
+            "W04-D1-S1",
+            subject="BIO",
+            recommended_date=recommended_date,
+            slot_index=1,
+        )
+        self.insert_lesson(
+            "BIO1A8",
+            "W04-D5-S2",
+            subject="BIO",
+            recommended_date=recommended_date,
+            slot_index=2,
+        )
+
+    def test_first_unseen_excludes_reserved_codes(self) -> None:
+        lessons = [
+            {"lesson_code": "BIO1A6", "is_seen": 1},
+            {"lesson_code": "BIO1A7", "is_seen": 0},
+            {"lesson_code": "BIO1A8", "is_seen": 0},
+        ]
+
+        selected = first_unseen_excluding(
+            lessons,
+            excluded_codes={"BIO1A7"},
+        )
+
+        self.assertEqual(selected["lesson_code"], "BIO1A8")
+
     def test_assignment_equal_to_planned_slot_is_valid(self) -> None:
         self.insert_lesson("MAT1A2", "W01-D4-S1")
         self.assign("2026-07-09", "W01-D4-S1", "MAT1A2")
@@ -125,7 +172,11 @@ class FoDailyAssignmentValidatorTest(unittest.TestCase):
         )
         self.insert_lesson("MAT1A2", "W01-D4-S1", slot_index=1)
 
-        rows, _ = build_today_rows(self.conn, target_date="2026-07-09")
+        rows, _ = build_today_rows(
+            self.conn,
+            target_date="2026-07-09",
+            as_of_date=date(2026, 7, 9),
+        )
         report = self.validate()
 
         self.assertEqual(rows[0]["target"]["lesson_code"], "MAT1A1")
@@ -228,24 +279,175 @@ class FoDailyAssignmentValidatorTest(unittest.TestCase):
         self.assign("2026-07-09", "W01-D4-S1", "MAT1A1")
         self.assign("2026-07-09", "W01-D4-S2", "MAT1A1")
 
-        self.assert_error_contains("reutilizada em slots incompatíveis")
+        self.assert_error_contains("assigned_lesson_code duplicado na mesma data")
 
-    def test_compatible_duplicate_created_by_home_is_accepted(self) -> None:
+    def test_same_scope_slots_assign_distinct_pending_lessons(self) -> None:
+        self.insert_bio_queue()
+
+        rows, _ = build_today_rows(
+            self.conn,
+            target_date="2026-07-09",
+            as_of_date=date(2026, 7, 9),
+        )
+        assignments = self.conn.execute(
+            """
+            SELECT planned_slot_key, assigned_lesson_code
+            FROM daily_assignments
+            WHERE dashboard_date = '2026-07-09'
+            ORDER BY planned_slot_key
+            """
+        ).fetchall()
+
+        self.assertEqual(
+            [row["target"]["lesson_code"] for row in rows],
+            ["BIO1A7", "BIO1A8"],
+        )
+        self.assertEqual(
+            [(row["planned_slot_key"], row["assigned_lesson_code"]) for row in assignments],
+            [("W04-D1-S1", "BIO1A7"), ("W04-D5-S2", "BIO1A8")],
+        )
+        self.assertIsNone(rows[0]["warning"])
+        self.assertIsNone(rows[1]["warning"])
+
+    def test_existing_distinct_assignments_are_preserved(self) -> None:
+        self.insert_bio_queue()
+        self.assign("2026-07-09", "W04-D1-S1", "BIO1A7")
+        self.assign("2026-07-09", "W04-D5-S2", "BIO1A8")
+        before = self.conn.execute(
+            "SELECT * FROM daily_assignments ORDER BY planned_slot_key"
+        ).fetchall()
+
+        rows, _ = build_today_rows(
+            self.conn,
+            target_date="2026-07-09",
+            as_of_date=date(2026, 7, 9),
+        )
+        after = self.conn.execute(
+            "SELECT * FROM daily_assignments ORDER BY planned_slot_key"
+        ).fetchall()
+
+        self.assertEqual([tuple(row) for row in after], [tuple(row) for row in before])
+        self.assertEqual(
+            [row["target"]["lesson_code"] for row in rows],
+            ["BIO1A7", "BIO1A8"],
+        )
+
+    def test_existing_duplicate_assignment_is_rematerialized_for_today(self) -> None:
+        self.insert_bio_queue()
+        self.assign("2026-07-09", "W04-D1-S1", "BIO1A7")
+        self.assign("2026-07-09", "W04-D5-S2", "BIO1A7")
+
+        build_today_rows(
+            self.conn,
+            target_date="2026-07-09",
+            as_of_date=date(2026, 7, 9),
+        )
+        assignments = self.conn.execute(
+            """
+            SELECT planned_slot_key, assigned_lesson_code
+            FROM daily_assignments
+            ORDER BY planned_slot_key
+            """
+        ).fetchall()
+
+        self.assertEqual(
+            [(row["planned_slot_key"], row["assigned_lesson_code"]) for row in assignments],
+            [("W04-D1-S1", "BIO1A7"), ("W04-D5-S2", "BIO1A8")],
+        )
+
+    def test_historical_duplicate_is_not_rewritten(self) -> None:
+        self.insert_bio_queue(recommended_date="2026-07-08")
+        self.assign("2026-07-08", "W04-D1-S1", "BIO1A7")
+        self.assign("2026-07-08", "W04-D5-S2", "BIO1A7")
+        before = self.conn.execute(
+            "SELECT * FROM daily_assignments ORDER BY planned_slot_key"
+        ).fetchall()
+
+        build_today_rows(
+            self.conn,
+            target_date="2026-07-08",
+            as_of_date=date(2026, 7, 9),
+        )
+        after = self.conn.execute(
+            "SELECT * FROM daily_assignments ORDER BY planned_slot_key"
+        ).fetchall()
+
+        self.assertEqual([tuple(row) for row in after], [tuple(row) for row in before])
+
+    def test_validator_rejects_duplicate_assigned_lesson_on_same_date(self) -> None:
+        self.insert_bio_queue()
+        self.assign("2026-07-09", "W04-D1-S1", "BIO1A7")
+        self.assign("2026-07-09", "W04-D5-S2", "BIO1A7")
+
+        report = self.validate()
+
+        self.assertFalse(report.is_valid)
+        self.assertEqual(report.duplicate_count, 1)
+        self.assertEqual(report.historical_duplicate_count, 0)
+        self.assertTrue(
+            any("assigned_lesson_code duplicado na mesma data" in error for error in report.errors)
+        )
+
+    def test_assignment_transaction_rolls_back_on_duplicate(self) -> None:
+        self.insert_bio_queue()
+        self.conn.commit()
+
+        def colliding_upsert(
+            conn: sqlite3.Connection,
+            target_date: str,
+            planned_slot_key: str,
+            assigned_lesson_code: str,
+        ) -> None:
+            del assigned_lesson_code
+            conn.execute(
+                """
+                INSERT INTO daily_assignments (
+                    dashboard_date, planned_slot_key, assigned_lesson_code
+                ) VALUES (?, ?, 'BIO1A7')
+                ON CONFLICT(dashboard_date, planned_slot_key) DO UPDATE SET
+                    assigned_lesson_code = excluded.assigned_lesson_code
+                """,
+                (target_date, planned_slot_key),
+            )
+
+        with patch("app.dashboard.upsert_assignment", side_effect=colliding_upsert):
+            with self.assertRaises(DuplicateDailyAssignmentError):
+                build_today_rows(
+                    self.conn,
+                    target_date="2026-07-09",
+                    as_of_date=date(2026, 7, 9),
+                )
+
+        assignment_count = self.conn.execute(
+            "SELECT COUNT(*) FROM daily_assignments"
+        ).fetchone()[0]
+        self.assertEqual(assignment_count, 0)
+
+    def test_same_lesson_can_exist_on_different_dates_when_semantically_allowed(self) -> None:
         self.insert_lesson(
             "MAT1A1",
             "W01-D3-S1",
             recommended_date="2026-07-08",
-            slot_index=1,
         )
-        self.insert_lesson("MAT1A2", "W01-D4-S1", slot_index=1)
-        self.insert_lesson("MAT1A3", "W01-D4-S2", slot_index=2)
+        self.insert_lesson(
+            "MAT1A2",
+            "W01-D4-S1",
+            recommended_date="2026-07-09",
+        )
+        self.insert_lesson(
+            "MAT1A3",
+            "W01-D5-S1",
+            recommended_date="2026-07-10",
+        )
+        self.assign("2026-07-09", "W01-D4-S1", "MAT1A1")
+        self.assign("2026-07-10", "W01-D5-S1", "MAT1A1")
 
-        build_today_rows(self.conn, target_date="2026-07-09")
         report = self.validate()
 
         self.assertTrue(report.is_valid)
         self.assertEqual(report.substitution_count, 2)
-        self.assertEqual(report.compatible_duplicate_count, 1)
+        self.assertEqual(report.duplicate_count, 0)
+        self.assertEqual(report.historical_duplicate_count, 0)
 
     def test_database_without_assignments_is_valid(self) -> None:
         self.insert_lesson("MAT1A2", "W01-D4-S1")

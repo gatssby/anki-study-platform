@@ -406,8 +406,20 @@ print(f"daily_assignment_total={assignment_report.total_count}")
 print(f"daily_assignment_exact={assignment_report.exact_count}")
 print(f"daily_assignment_substitution={assignment_report.substitution_count}")
 print(
-    "daily_assignment_compatible_duplicate="
-    f"{assignment_report.compatible_duplicate_count}"
+    "daily_assignment_duplicate="
+    f"{assignment_report.duplicate_count}"
+)
+print(
+    "daily_assignment_historical_duplicate_preserved="
+    f"{assignment_report.historical_duplicate_count}"
+)
+print(
+    "daily_assignment_slot_without_target="
+    f"{assignment_report.slot_without_target_count}"
+)
+print(
+    "daily_assignment_incompatible_target="
+    f"{assignment_report.incompatible_target_count}"
 )
 print(f"daily_assignment_contract_errors={len(assignment_report.errors)}")
 for error in assignment_report.errors:

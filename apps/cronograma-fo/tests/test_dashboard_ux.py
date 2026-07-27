@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import html
-import sqlite3
+import re
 import subprocess
 import tempfile
 import unittest
@@ -9,7 +9,6 @@ from pathlib import Path
 
 from app.db import connect_db, init_db
 from app.web import create_app
-
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -199,6 +198,68 @@ class DashboardUxTest(unittest.TestCase):
             "data-preserve-un-modules",
         ):
             self.assertIn(contract, page)
+
+    def test_fo_html_renders_distinct_targets_for_same_scope_slots(self) -> None:
+        with connect_db(self.db_path) as conn:
+            lesson_rows = (
+                (
+                    "W04-D1-S1",
+                    "BIO1A7",
+                    "Biologia I - Aula 7",
+                    "Aula 07 - Citoplasma",
+                    2676,
+                    7,
+                    1,
+                ),
+                (
+                    "W04-D5-S2",
+                    "BIO1A8",
+                    "Biologia I - Aula 8",
+                    "Aula 08 - Respiração celular",
+                    2543,
+                    8,
+                    2,
+                ),
+            )
+            conn.executemany(
+                """
+                INSERT INTO lessons (
+                    slot_key, lesson_code, track_code, lesson_type, title_raw,
+                    portal_title, duration_seconds, subject_name, subject_prefix,
+                    module_label, module_number, lesson_number, week_number,
+                    day_index, day_name, slot_index, recommended_date, is_seen,
+                    is_cut, source_sheet
+                ) VALUES (
+                    ?, ?, 'FO', 'lesson', ?, ?, ?, 'Biologia', 'BIO',
+                    'I', 1, ?, 1, 7, 'Domingo', ?, '2026-07-26', 0, 0, 'FO'
+                )
+                """,
+                lesson_rows,
+            )
+            conn.executemany(
+                """
+                INSERT INTO daily_assignments (
+                    dashboard_date, planned_slot_key, assigned_lesson_code
+                ) VALUES ('2026-07-26', ?, ?)
+                """,
+                (
+                    ("W04-D1-S1", "BIO1A7"),
+                    ("W04-D5-S2", "BIO1A8"),
+                ),
+            )
+            conn.commit()
+
+        response = self.client.get("/?date=2026-07-26&fo_view=aulas")
+        page = html.unescape(response.get_data(as_text=True))
+        normalized_page = re.sub(r"\s+", " ", page)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(page.count("Aula 07 - Citoplasma"), 1)
+        self.assertEqual(page.count("Aula 08 - Respiração celular"), 1)
+        self.assertEqual(page.count("/lessons/BIO1A7/toggle-seen"), 1)
+        self.assertEqual(page.count("/lessons/BIO1A8/toggle-seen"), 1)
+        self.assertIn("I · M1 · Sem 1", normalized_page)
+        self.assertIn("I · M2 · Sem 1", normalized_page)
 
 
 class DashboardJavascriptStateTest(unittest.TestCase):

@@ -15,7 +15,10 @@ class DailyAssignmentValidation:
     total_count: int
     exact_count: int
     substitution_count: int
-    compatible_duplicate_count: int
+    duplicate_count: int
+    historical_duplicate_count: int
+    slot_without_target_count: int
+    incompatible_target_count: int
     errors: tuple[str, ...]
 
     @property
@@ -107,7 +110,12 @@ def validate_daily_assignments(
                 f"planned_slot_key={planned_slot_key}: count={count}"
             )
 
-    assignments_by_lesson: dict[str, list[dict[str, object]]] = defaultdict(list)
+    assignments_by_date_and_lesson: dict[
+        tuple[str, str],
+        list[dict[str, object]],
+    ] = defaultdict(list)
+    slot_without_target_count = 0
+    incompatible_target_count = 0
 
     for row in assignments:
         row_label = (
@@ -116,16 +124,23 @@ def validate_daily_assignments(
             f"assigned_lesson_code={row['assigned_lesson_code']}"
         )
         planned_exists = row["planned_lesson_code"] is not None
+        assigned_code = str(row["assigned_lesson_code"] or "").strip()
+        has_assigned_code = bool(assigned_code)
         assigned_exists = row["assigned_track_code"] is not None
 
         if not planned_exists:
             errors.append(f"slot planejado inexistente: {row_label}")
+        if not has_assigned_code:
+            slot_without_target_count += 1
+            errors.append(f"slot sem alvo: {row_label}")
+            continue
+        assignments_by_date_and_lesson[
+            (str(row["dashboard_date"]), assigned_code)
+        ].append(row)
         if not assigned_exists:
             errors.append(f"aula atribuida inexistente: {row_label}")
         if not planned_exists or not assigned_exists:
             continue
-
-        assignments_by_lesson[str(row["assigned_lesson_code"])].append(row)
 
         if row["planned_track_code"] != "FO":
             errors.append(f"slot planejado nao pertence a FO: {row_label}")
@@ -166,6 +181,7 @@ def validate_daily_assignments(
         )
         same_module = row["planned_module_number"] == row["assigned_module_number"]
         if not same_subject or not same_module:
+            incompatible_target_count += 1
             errors.append(
                 f"substituicao incompatível com disciplina/modulo da home: {row_label} "
                 f"planned={row['planned_subject_prefix']}/{row['planned_module_number']} "
@@ -181,30 +197,36 @@ def validate_daily_assignments(
                 f"assigned_recommended_date={row['assigned_recommended_date']}"
             )
 
-    compatible_duplicate_count = 0
-    for assigned_lesson_code, duplicate_rows in sorted(assignments_by_lesson.items()):
+    duplicate_count = 0
+    historical_duplicate_count = 0
+    for (
+        dashboard_date,
+        assigned_lesson_code,
+    ), duplicate_rows in sorted(assignments_by_date_and_lesson.items()):
         if len(duplicate_rows) < 2:
             continue
-        scopes = {
-            (row["planned_subject_prefix"], row["planned_module_number"])
-            for row in duplicate_rows
-        }
-        if len(scopes) > 1:
-            scope_text = ",".join(
-                f"{subject}/{module}" for subject, module in sorted(scopes, key=repr)
+        if _valid_iso_date(dashboard_date) and date.fromisoformat(dashboard_date) < validation_date:
+            historical_duplicate_count += 1
+        else:
+            duplicate_count += 1
+            planned_slots = ",".join(
+                sorted(str(row["planned_slot_key"]) for row in duplicate_rows)
             )
             errors.append(
-                f"aula atribuida reutilizada em slots incompatíveis: "
-                f"assigned_lesson_code={assigned_lesson_code} scopes={scope_text}"
+                "assigned_lesson_code duplicado na mesma data: "
+                f"dashboard_date={dashboard_date} "
+                f"assigned_lesson_code={assigned_lesson_code} "
+                f"planned_slot_keys={planned_slots}"
             )
-        else:
-            compatible_duplicate_count += 1
 
     return DailyAssignmentValidation(
         total_count=len(assignments),
         exact_count=exact_count,
         substitution_count=substitution_count,
-        compatible_duplicate_count=compatible_duplicate_count,
+        duplicate_count=duplicate_count,
+        historical_duplicate_count=historical_duplicate_count,
+        slot_without_target_count=slot_without_target_count,
+        incompatible_target_count=incompatible_target_count,
         errors=tuple(errors),
     )
 
@@ -239,7 +261,13 @@ def main() -> int:
     print(f"daily_assignment_total={report.total_count}")
     print(f"daily_assignment_exact={report.exact_count}")
     print(f"daily_assignment_substitution={report.substitution_count}")
-    print(f"daily_assignment_compatible_duplicate={report.compatible_duplicate_count}")
+    print(f"daily_assignment_duplicate={report.duplicate_count}")
+    print(
+        "daily_assignment_historical_duplicate_preserved="
+        f"{report.historical_duplicate_count}"
+    )
+    print(f"daily_assignment_slot_without_target={report.slot_without_target_count}")
+    print(f"daily_assignment_incompatible_target={report.incompatible_target_count}")
     print(f"daily_assignment_contract_errors={len(report.errors)}")
     for error in report.errors:
         print(f"daily_assignment_error={error}")
