@@ -287,9 +287,49 @@ fi
 
 if (( rebuild_ran )); then
   STEP_STARTED="$(now_ms)"
-  echo "[5/7] Testando API..."
-  curl -fsS https://gatsby-anki.137.131.191.66.nip.io/roots
-  echo
+  echo "[5/7] Testando API autenticada..."
+  ANKI_GPT_TOKEN_FILE="${ANKI_GPT_TOKEN_FILE:-$LOCAL_BASE/tagging_token.txt}" \
+  python3 - <<'PY'
+import os
+import sys
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+token = os.environ.get("ANKI_GPT_TAGGING_TOKEN", "").strip()
+if not token:
+    token_file = Path(os.environ["ANKI_GPT_TOKEN_FILE"])
+    try:
+        raw_token = token_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        print(f"authenticated smoke test failed: token unavailable ({type(exc).__name__})", file=sys.stderr)
+        raise SystemExit(1)
+    lines = raw_token.splitlines()
+    token = raw_token.strip()
+    if len(lines) != 1 or not token or any(char.isspace() for char in token):
+        print("authenticated smoke test failed: token file must contain exactly one token", file=sys.stderr)
+        raise SystemExit(1)
+
+request = Request(
+    "https://gatsby-anki.137.131.191.66.nip.io/decks?limit=1",
+    headers={"X-Tagging-Token": token},
+    method="GET",
+)
+try:
+    with urlopen(request, timeout=30) as response:
+        status = response.status
+except HTTPError as exc:
+    print(f"authenticated smoke test failed: HTTP {exc.code}", file=sys.stderr)
+    raise SystemExit(1)
+except (OSError, URLError) as exc:
+    print(f"authenticated smoke test failed: {type(exc).__name__}", file=sys.stderr)
+    raise SystemExit(1)
+
+if status != 200:
+    print(f"authenticated smoke test failed: HTTP {status}", file=sys.stderr)
+    raise SystemExit(1)
+print("authenticated smoke test ok status=200")
+PY
   duration_log "$STEP_STARTED" "smoke_test"
 else
   echo "[5/7] Smoke test pulado porque rebuild nao rodou."

@@ -1184,9 +1184,19 @@ def load_tagging_token() -> str:
         return token
 
     try:
-        return TAGGING_TOKEN_FILE.read_text(encoding="utf-8").strip()
+        token = TAGGING_TOKEN_FILE.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         return ""
+    except (OSError, UnicodeError) as e:
+        log(
+            "tagging token file unreadable "
+            f"path={TAGGING_TOKEN_FILE} error_type={type(e).__name__}"
+        )
+        return ""
+    if not token or any(character.isspace() for character in token):
+        log(f"tagging token file invalid path={TAGGING_TOKEN_FILE}")
+        return ""
+    return token
 
 
 def tagging_api_request(path: str, method: str = "GET", payload=None):
@@ -1940,7 +1950,48 @@ def organization_summary_changed(summary: dict) -> bool:
     )
 
 
-def post_snapshot_payload(payload_dict: dict, reason: str) -> bool:
+def authentication_required_message() -> str:
+    return (
+        "Autenticação ausente.\n"
+        f"Configure {TAGGING_TOKEN_ENV} ou:\n"
+        f"{TAGGING_TOKEN_FILE}"
+    )
+
+
+def snapshot_failure_message(upload_result: dict) -> str:
+    cause = upload_result.get("cause")
+    if cause == "missing_authentication_token":
+        return authentication_required_message()
+    if cause == "authentication_rejected":
+        return (
+            "Autenticação rejeitada pelo backend.\n"
+            f"Verifique {TAGGING_TOKEN_ENV} ou:\n"
+            f"{TAGGING_TOKEN_FILE}"
+        )
+    if cause == "network_error":
+        return f"Falha de rede ao enviar o snapshot. Veja o log: {LOG_FILE}"
+    if cause == "server_error":
+        return f"O backend recusou o snapshot. Veja o log: {LOG_FILE}"
+    if cause == "invalid_response":
+        return f"O backend retornou uma resposta inválida. Veja o log: {LOG_FILE}"
+    if cause == "auto_publish_paused":
+        return "Publicação pausada pela configuração local."
+    return f"Falha ao enviar o snapshot. Veja o log: {LOG_FILE}"
+
+
+def combined_snapshot_failure(stage: str, upload_result: dict) -> dict:
+    stage_label = "Snapshot inicial" if stage == "initial" else "Snapshot final"
+    return {
+        "lines": [snapshot_failure_message(upload_result)],
+        "fatal_failures": [stage_label],
+        "warnings": [],
+        "error": f"{stage}_snapshot_upload_failed",
+        "failure_cause": upload_result.get("cause") or "unknown_error",
+        "upload_result": dict(upload_result),
+    }
+
+
+def post_snapshot_payload_result(payload_dict: dict, reason: str) -> dict:
     global LAST_POSTED_SNAPSHOT_HASH, LAST_CONFIRMED_GENERATION_ID
 
     if AUTO_PUBLISH_PAUSE_FILE.exists():
@@ -1948,15 +1999,15 @@ def post_snapshot_payload(payload_dict: dict, reason: str) -> bool:
         writer = globals().get("write_addon_runtime_diagnostics")
         if callable(writer):
             writer("snapshot_publish_paused")
-        return False
+        return {"ok": False, "cause": "auto_publish_paused"}
 
     token = load_tagging_token()
     if not token:
         log(
-            "snapshot sync skipped: missing authentication token "
+            "snapshot sync skipped cause=missing_authentication_token "
             f"env={TAGGING_TOKEN_ENV} file={TAGGING_TOKEN_FILE}"
         )
-        return False
+        return {"ok": False, "cause": "missing_authentication_token"}
 
     LAST_POSTED_SNAPSHOT_HASH = snapshot_content_hash(payload_dict)
     payload = json.dumps(payload_dict, ensure_ascii=False).encode("utf-8")
@@ -1985,34 +2036,59 @@ def post_snapshot_payload(payload_dict: dict, reason: str) -> bool:
                     f"POST confirmation missing reason={reason} url={SYNC_URL} status={resp.status} "
                     f"duration_ms={duration_ms(post_started)} step=post_sync_full"
                 )
-                return False
+                return {
+                    "ok": False,
+                    "cause": "invalid_response",
+                    "status": int(resp.status),
+                }
             LAST_CONFIRMED_GENERATION_ID = generation_id
             log(
                 f"POST ok reason={reason} url={SYNC_URL} status={resp.status} "
                 f"duration_ms={duration_ms(post_started)} step=post_sync_full "
                 f"generation_id={generation_id} body_bytes={len(body.encode('utf-8'))}"
             )
-        return True
+        return {
+            "ok": True,
+            "cause": "",
+            "status": int(resp.status),
+            "generation_id": generation_id,
+        }
     except HTTPError as e:
         body = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+        cause = "authentication_rejected" if e.code in {401, 403} else "server_error"
         log(
-            f"HTTPError reason={reason} url={SYNC_URL} status={e.code} reason={e.reason} "
+            f"HTTPError reason={reason} cause={cause} url={SYNC_URL} "
+            f"status={e.code} reason={e.reason} "
             f"duration_ms={duration_ms(post_started)} step=post_sync_full body_bytes={len(body.encode('utf-8'))}"
         )
+        return {"ok": False, "cause": cause, "status": int(e.code)}
     except URLError as e:
-        log(f"URLError reason={reason} url={SYNC_URL} reason={e.reason} duration_ms={duration_ms(post_started)} step=post_sync_full")
+        log(
+            f"URLError reason={reason} cause=network_error url={SYNC_URL} "
+            f"reason={e.reason} duration_ms={duration_ms(post_started)} step=post_sync_full"
+        )
+        return {"ok": False, "cause": "network_error"}
     except Exception as e:
-        log(f"Exception POST reason={reason} url={SYNC_URL} {type(e).__name__}: {e} duration_ms={duration_ms(post_started)} step=post_sync_full")
-    return False
+        log(
+            f"Exception POST reason={reason} cause=network_error url={SYNC_URL} "
+            f"{type(e).__name__}: {e} duration_ms={duration_ms(post_started)} "
+            "step=post_sync_full"
+        )
+        return {"ok": False, "cause": "network_error"}
 
 
-def post_full_snapshot(reason: str) -> bool:
+def post_snapshot_payload(payload_dict: dict, reason: str) -> bool:
+    return bool(post_snapshot_payload_result(payload_dict, reason).get("ok"))
+
+
+def post_full_snapshot_result(reason: str) -> dict:
     if not load_tagging_token():
         log(
-            "snapshot sync skipped before collection read: missing authentication token "
+            "snapshot sync skipped before collection read "
+            "cause=missing_authentication_token "
             f"env={TAGGING_TOKEN_ENV} file={TAGGING_TOKEN_FILE}"
         )
-        return False
+        return {"ok": False, "cause": "missing_authentication_token"}
     snapshot_started = time.perf_counter()
     try:
         payload_dict = build_payload()
@@ -2026,8 +2102,12 @@ def post_full_snapshot(reason: str) -> bool:
         )
     except Exception as e:
         log(f"Exception build_payload reason={reason} {type(e).__name__}: {e}")
-        return False
-    return post_snapshot_payload(payload_dict, reason)
+        return {"ok": False, "cause": "snapshot_build_error"}
+    return post_snapshot_payload_result(payload_dict, reason)
+
+
+def post_full_snapshot(reason: str) -> bool:
+    return bool(post_full_snapshot_result(reason).get("ok"))
 
 
 def sync_full_snapshot_now() -> None:
@@ -2037,9 +2117,9 @@ def sync_full_snapshot_now() -> None:
         log(f"manual full snapshot skipped reason={decision['reason']} mode={decision['mode']}")
         showInfo(f"Publicacao bloqueada: {decision['reason']} (modo {decision['mode']}).")
         return
-    ok = post_full_snapshot("manual_full_sync")
-    if not ok:
-        showInfo(f"Falha ao enviar snapshot completo. Veja o log: {LOG_FILE}")
+    upload_result = post_full_snapshot_result("manual_full_sync")
+    if not upload_result.get("ok"):
+        showInfo(snapshot_failure_message(upload_result))
         return
 
     def after_media_publish(result, error) -> None:
@@ -2081,6 +2161,14 @@ def sync_everything_now() -> None:
     if not decision["allowed"]:
         log(f"manual combined sync skipped reason={decision['reason']} mode={decision['mode']}")
         showInfo(f"Publicacao bloqueada: {decision['reason']} (modo {decision['mode']}).")
+        return
+
+    if not load_tagging_token():
+        log(
+            "manual combined sync skipped cause=missing_authentication_token "
+            f"env={TAGGING_TOKEN_ENV} file={TAGGING_TOKEN_FILE}"
+        )
+        showInfo(authentication_required_message())
         return
 
     if COMBINED_SYNC_IN_FLIGHT:
@@ -2206,7 +2294,9 @@ def sync_everything_now() -> None:
         log(
             "manual combined sync finished "
             f"fatal_failures={result.get('fatal_failures', [])} "
-            f"warnings={result.get('warnings', [])}"
+            f"warnings={result.get('warnings', [])} "
+            f"error={result.get('error', '')} "
+            f"failure_cause={result.get('failure_cause', '')}"
         )
         showInfo(build_message(result))
 
@@ -2242,12 +2332,22 @@ def sync_everything_now() -> None:
 
     if not callable(run_in_background):
         try:
-            if not post_snapshot_payload(initial_payload, "manual_combined_initial_sync"):
-                raise RuntimeError("initial_snapshot_upload_failed")
+            initial_upload = post_snapshot_payload_result(
+                initial_payload,
+                "manual_combined_initial_sync",
+            )
+            if not initial_upload.get("ok"):
+                finish_from_result(combined_snapshot_failure("initial", initial_upload), None)
+                return
             result, final_payload = process_queue_on_main_thread()
             if final_payload is not None:
-                if not post_snapshot_payload(final_payload, "manual_combined_final_sync"):
-                    raise RuntimeError("final_snapshot_upload_failed")
+                final_upload = post_snapshot_payload_result(
+                    final_payload,
+                    "manual_combined_final_sync",
+                )
+                if not final_upload.get("ok"):
+                    finish_from_result(combined_snapshot_failure("final", final_upload), None)
+                    return
                 result["lines"].append("Snapshot final enviado.")
                 finish_with_media(result, "manual_combined_after_final_sync")
             else:
@@ -2260,24 +2360,40 @@ def sync_everything_now() -> None:
         def done(future) -> None:
             def handle_main() -> None:
                 try:
-                    on_done(bool(future.result()), None)
+                    on_done(future.result(), None)
                 except Exception as e:
-                    on_done(False, e)
+                    on_done(None, e)
 
             run_on_main_thread(handle_main)
 
-        run_in_background(lambda: post_snapshot_payload(payload, reason), done)
+        run_in_background(lambda: post_snapshot_payload_result(payload, reason), done)
 
-    def after_final_upload(ok: bool, error) -> None:
-        if error is not None or not ok:
-            finish_from_result(None, error or RuntimeError("final_snapshot_upload_failed"))
+    def after_final_upload(upload_result, error) -> None:
+        if error is not None:
+            finish_from_result(None, error)
+            return
+        if not isinstance(upload_result, dict) or not upload_result.get("ok"):
+            normalized = (
+                upload_result
+                if isinstance(upload_result, dict)
+                else {"ok": False, "cause": "unknown_error"}
+            )
+            finish_from_result(combined_snapshot_failure("final", normalized), None)
             return
         pending_result["value"]["lines"].append("Snapshot final enviado.")
         finish_with_media(pending_result["value"], "manual_combined_after_final_sync")
 
-    def after_initial_upload(ok: bool, error) -> None:
-        if error is not None or not ok:
-            finish_from_result(None, error or RuntimeError("initial_snapshot_upload_failed"))
+    def after_initial_upload(upload_result, error) -> None:
+        if error is not None:
+            finish_from_result(None, error)
+            return
+        if not isinstance(upload_result, dict) or not upload_result.get("ok"):
+            normalized = (
+                upload_result
+                if isinstance(upload_result, dict)
+                else {"ok": False, "cause": "unknown_error"}
+            )
+            finish_from_result(combined_snapshot_failure("initial", normalized), None)
             return
         try:
             result, final_payload = process_queue_on_main_thread()

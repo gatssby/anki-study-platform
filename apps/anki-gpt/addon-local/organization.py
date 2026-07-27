@@ -131,9 +131,19 @@ def load_organization_token() -> str:
         return token
 
     try:
-        return ORGANIZATION_TOKEN_FILE.read_text(encoding="utf-8").strip()
+        token = ORGANIZATION_TOKEN_FILE.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         return ""
+    except (OSError, UnicodeError) as e:
+        log(
+            "organization token file unreadable "
+            f"path={ORGANIZATION_TOKEN_FILE} error_type={type(e).__name__}"
+        )
+        return ""
+    if not token or any(character.isspace() for character in token):
+        log(f"organization token file invalid path={ORGANIZATION_TOKEN_FILE}")
+        return ""
+    return token
 
 
 def organization_api_request(path: str, method: str = "GET", payload=None):

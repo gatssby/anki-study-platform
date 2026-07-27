@@ -1662,7 +1662,7 @@ def test_snapshot_publish_requires_generation_confirmation_and_pause_precedes_ne
     calls = []
     pause_file = tmp_path / "pause_auto_publish"
     namespace = addon_function_namespace(
-        {"post_snapshot_payload"},
+        {"post_snapshot_payload_result", "post_snapshot_payload"},
         AUTO_PUBLISH_PAUSE_FILE=pause_file,
         LAST_POSTED_SNAPSHOT_HASH="",
         LAST_CONFIRMED_GENERATION_ID="",
@@ -1678,15 +1678,260 @@ def test_snapshot_publish_requires_generation_confirmation_and_pause_precedes_ne
         URLError=RuntimeError,
         urlopen=lambda *_args, **_kwargs: Response(b'{"generation_id":"gen-fixture"}'),
     )
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
+    assert result == {
+        "ok": True,
+        "cause": "",
+        "status": 200,
+        "generation_id": "gen-fixture",
+    }
     assert namespace["post_snapshot_payload"]({"fixture": True}, "fixture") is True
     assert namespace["LAST_CONFIRMED_GENERATION_ID"] == "gen-fixture"
 
     namespace["urlopen"] = lambda *_args, **_kwargs: Response(b'{"ok":true}')
-    assert namespace["post_snapshot_payload"]({"fixture": True}, "fixture") is False
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
+    assert result["ok"] is False
+    assert result["cause"] == "invalid_response"
 
     pause_file.touch()
     namespace["urlopen"] = lambda *_args, **_kwargs: pytest.fail("network must not run while paused")
-    assert namespace["post_snapshot_payload"]({"fixture": True}, "fixture") is False
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
+    assert result == {"ok": False, "cause": "auto_publish_paused"}
+
+
+def test_addon_token_loader_uses_canonical_file_and_environment_precedence(
+    tmp_path, monkeypatch
+):
+    token_file = tmp_path / "tagging_token.txt"
+    token_file.write_text("fixture-file-token\n", encoding="utf-8")
+    events = []
+    namespace = addon_function_namespace(
+        {"load_tagging_token"},
+        os=os,
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN_FIXTURE",
+        TAGGING_TOKEN_FILE=token_file,
+        log=events.append,
+    )
+
+    monkeypatch.delenv("ANKI_GPT_TAGGING_TOKEN_FIXTURE", raising=False)
+    assert namespace["load_tagging_token"]() == "fixture-file-token"
+
+    monkeypatch.setenv("ANKI_GPT_TAGGING_TOKEN_FIXTURE", "fixture-env-token")
+    assert namespace["load_tagging_token"]() == "fixture-env-token"
+    assert events == []
+
+
+def test_addon_token_loader_rejects_missing_empty_and_multiline_files(
+    tmp_path, monkeypatch
+):
+    token_file = tmp_path / "tagging_token.txt"
+    events = []
+    namespace = addon_function_namespace(
+        {"load_tagging_token"},
+        os=os,
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN_FIXTURE",
+        TAGGING_TOKEN_FILE=token_file,
+        log=events.append,
+    )
+    monkeypatch.delenv("ANKI_GPT_TAGGING_TOKEN_FIXTURE", raising=False)
+
+    assert namespace["load_tagging_token"]() == ""
+    token_file.write_text("", encoding="utf-8")
+    assert namespace["load_tagging_token"]() == ""
+    token_file.write_text("first-line\nsecond-line\n", encoding="utf-8")
+    assert namespace["load_tagging_token"]() == ""
+    assert len([event for event in events if "token file invalid" in event]) == 2
+
+
+def test_snapshot_authentication_rejection_preserves_cause_without_logging_secret(tmp_path):
+    class RejectedError(Exception):
+        code = 401
+        reason = "Unauthorized"
+
+        @staticmethod
+        def read():
+            return b'{"error":"unauthorized"}'
+
+    class NetworkError(Exception):
+        pass
+
+    secret = "fixture-secret-that-must-never-be-logged"
+    events = []
+    namespace = addon_function_namespace(
+        {"post_snapshot_payload_result"},
+        AUTO_PUBLISH_PAUSE_FILE=tmp_path / "pause_auto_publish",
+        LAST_POSTED_SNAPSHOT_HASH="",
+        LAST_CONFIRMED_GENERATION_ID="",
+        load_tagging_token=lambda: secret,
+        log=events.append,
+        snapshot_content_hash=lambda _payload: "fixture-hash",
+        json=json,
+        Request=lambda *args, **kwargs: (args, kwargs),
+        SYNC_URL="https://example.invalid/sync/full",
+        time=types.SimpleNamespace(perf_counter=lambda: 1.0),
+        duration_ms=lambda _started: 1,
+        HTTPError=RejectedError,
+        URLError=NetworkError,
+        urlopen=lambda *_args, **_kwargs: (_ for _ in ()).throw(RejectedError()),
+    )
+
+    result = namespace["post_snapshot_payload_result"]({"fixture": True}, "fixture")
+
+    assert result == {"ok": False, "cause": "authentication_rejected", "status": 401}
+    assert secret not in "\n".join(events)
+    assert any("cause=authentication_rejected" in event for event in events)
+
+
+def test_manual_missing_authentication_message_is_clear_and_canonical():
+    canonical_token = (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Anki2"
+        / "addon-data"
+        / "anki_gpt_sync"
+        / "tagging_token.txt"
+    )
+    namespace = addon_function_namespace(
+        {"authentication_required_message"},
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN",
+        TAGGING_TOKEN_FILE=canonical_token,
+    )
+
+    message = namespace["authentication_required_message"]()
+
+    assert message.startswith("Autenticação ausente.")
+    assert "ANKI_GPT_TAGGING_TOKEN" in message
+    assert str(canonical_token) in message
+    assert "anki-gpt-files" not in message
+
+
+def test_manual_combined_sync_missing_token_never_reads_collection_or_uses_generic_error():
+    messages = []
+    events = []
+    canonical_token = (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Anki2"
+        / "addon-data"
+        / "anki_gpt_sync"
+        / "tagging_token.txt"
+    )
+    namespace = addon_function_namespace(
+        {"authentication_required_message", "sync_everything_now"},
+        COMBINED_SYNC_IN_FLIGHT=False,
+        publication_decision=lambda _trigger: {
+            "allowed": True,
+            "mode": "manual",
+            "reason": "manual_request",
+        },
+        load_tagging_token=lambda: "",
+        log=events.append,
+        showInfo=messages.append,
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN",
+        TAGGING_TOKEN_FILE=canonical_token,
+    )
+
+    namespace["sync_everything_now"]()
+
+    assert namespace["COMBINED_SYNC_IN_FLIGHT"] is False
+    assert messages == [namespace["authentication_required_message"]()]
+    assert "Erro inesperado" not in messages[0]
+    assert "initial_snapshot_upload_failed" not in messages[0]
+    assert any("cause=missing_authentication_token" in event for event in events)
+
+
+def test_automatic_sync_missing_token_logs_without_popup_or_collection_access():
+    events = []
+    namespace = addon_function_namespace(
+        {"on_sync_did_finish"},
+        log=events.append,
+        publication_decision=lambda _trigger: {
+            "allowed": True,
+            "mode": "after_anki_sync",
+            "configured": True,
+            "reason": "after_anki_sync",
+        },
+        post_full_snapshot=lambda _reason: False,
+    )
+
+    namespace["on_sync_did_finish"]()
+
+    assert any("hook sync_did_finish" in event for event in events)
+    assert "showInfo" not in namespace
+
+
+def test_combined_snapshot_failure_preserves_real_cause_and_canonical_log_path():
+    canonical_log = (
+        Path.home()
+        / "Library"
+        / "Application Support"
+        / "Anki2"
+        / "addon-data"
+        / "anki_gpt_sync"
+        / "logs"
+        / "anki_gpt_sync.log"
+    )
+    namespace = addon_function_namespace(
+        {
+            "authentication_required_message",
+            "snapshot_failure_message",
+            "combined_snapshot_failure",
+        },
+        TAGGING_TOKEN_ENV="ANKI_GPT_TAGGING_TOKEN",
+        TAGGING_TOKEN_FILE=canonical_log.parent.parent / "tagging_token.txt",
+        LOG_FILE=canonical_log,
+    )
+
+    failure = namespace["combined_snapshot_failure"](
+        "initial",
+        {"ok": False, "cause": "authentication_rejected", "status": 401},
+    )
+
+    assert failure["error"] == "initial_snapshot_upload_failed"
+    assert failure["failure_cause"] == "authentication_rejected"
+    assert failure["upload_result"]["status"] == 401
+    assert str(canonical_log.parent.parent / "tagging_token.txt") in failure["lines"][0]
+    assert "anki-gpt-files" not in json.dumps(failure)
+
+    network_failure = namespace["combined_snapshot_failure"](
+        "initial",
+        {"ok": False, "cause": "network_error"},
+    )
+    assert str(canonical_log) in network_failure["lines"][0]
+    assert "anki-gpt-files" not in network_failure["lines"][0]
+
+
+def test_active_addon_sources_have_no_legacy_runtime_dependency():
+    active_paths = (
+        ROOT / "addon-local" / "__init__.py",
+        ROOT / "addon-local" / "organization.py",
+        ROOT / "local-tools" / "anki_publish.sh",
+    )
+    for path in active_paths:
+        source = path.read_text(encoding="utf-8")
+        assert "anki-gpt-files" not in source
+        assert "/Users/gatsby/anki-gpt-files" not in source
+
+
+def test_media_publish_smoke_test_uses_canonical_token_without_command_argument():
+    script = (ROOT / "local-tools" / "anki_publish.sh").read_text(encoding="utf-8")
+    rebuild_script = (ROOT.parents[1] / "services" / "anki-api" / "rebuild_state.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'ANKI_GPT_TOKEN_FILE="${ANKI_GPT_TOKEN_FILE:-$LOCAL_BASE/tagging_token.txt}"' in script
+    assert 'os.environ.get("ANKI_GPT_TAGGING_TOKEN", "").strip()' in script
+    assert 'headers={"X-Tagging-Token": token}' in script
+    assert "/decks?limit=1" in script
+    assert "curl -fsS https://gatsby-anki.137.131.191.66.nip.io/roots" not in script
+    assert 'Path("$BASE/tagging_token.txt")' in rebuild_script
+    assert 'headers={"X-Tagging-Token": token}' in rebuild_script
+    assert "curl -fsS http://127.0.0.1:8767" not in rebuild_script
+
+    authentication_docs = (ROOT / "docs" / "AUTHENTICATION.md").read_text(encoding="utf-8")
+    assert "ambiente tem precedência" in authentication_docs
 
 
 def test_auto_publish_guards_cover_hook_manual_snapshot_and_media():
@@ -1716,7 +1961,9 @@ def test_auto_publish_guards_cover_hook_manual_snapshot_and_media():
         assert isinstance(decisions[0].args[0], ast.Constant)
         assert decisions[0].args[0].value == "manual"
     assert "AUTO_PUBLISH_PAUSE_FILE.exists()" in ast.unparse(functions["run_media_publish_script"])
-    assert "AUTO_PUBLISH_PAUSE_FILE.exists()" in ast.unparse(functions["post_snapshot_payload"])
+    assert "AUTO_PUBLISH_PAUSE_FILE.exists()" in ast.unparse(
+        functions["post_snapshot_payload_result"]
+    )
 
 
 def test_normal_search_cache_is_equivalent_reused_and_generation_scoped(query_api, monkeypatch):
@@ -1876,7 +2123,11 @@ def test_combined_sync_worker_receives_detached_payload_only():
 
 def test_addon_checks_sync_token_before_reading_collection():
     tree = ast.parse((ROOT / "addon-local" / "__init__.py").read_text(encoding="utf-8"))
-    function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "post_full_snapshot")
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "post_full_snapshot_result"
+    )
     calls = {
         node.func.id: node.lineno
         for node in ast.walk(function)
@@ -1932,7 +2183,12 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
 
     def upload(_payload, _reason):
         upload_threads.append(threading.get_ident())
-        return True
+        return {
+            "ok": True,
+            "cause": "",
+            "status": 200,
+            "generation_id": "gen-fixture",
+        }
 
     namespace = {
         "COMBINED_SYNC_IN_FLIGHT": False,
@@ -1942,12 +2198,14 @@ def test_combined_sync_harness_keeps_collection_work_on_caller_thread():
         "showInfo": lambda _message: None,
         "log": lambda _message: None,
         "publication_decision": lambda _trigger: {"allowed": True, "mode": "manual", "reason": "manual_allowed"},
+        "load_tagging_token": lambda: "fixture-token",
+        "authentication_required_message": lambda: "fixture auth required",
         "progress_start": lambda *_args, **_kwargs: False,
         "progress_update": lambda *_args, **_kwargs: None,
         "progress_finish": lambda: None,
         "run_on_main_thread": lambda callback: callback(),
         "build_payload": build_payload,
-        "post_snapshot_payload": upload,
+        "post_snapshot_payload_result": upload,
         "process_organization_queue_for_sync": process_queue,
         "organization_summary_changed": lambda summary: bool(summary.get("changed")),
         "organization_summary_failed": lambda summary: bool(summary.get("errors")),

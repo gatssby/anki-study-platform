@@ -240,31 +240,35 @@ tmux new-session -d -s anki-query-api "bash $SCRIPTS/start_query_api.sh" 9>&-
 sleep 2
 
 echo "[5/7] Smoke test..."
-ACCENT_SEARCH_URL="$(
-python3 - <<'PY'
+python3 - <<PY
+import json
+import os
+from pathlib import Path
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-print(
+token = os.environ.get("ANKI_GPT_TAGGING_TOKEN", "").strip()
+if not token:
+    token_path = Path("$BASE/tagging_token.txt")
+    raw_token = token_path.read_text(encoding="utf-8")
+    lines = raw_token.splitlines()
+    token = raw_token.strip()
+    if len(lines) != 1 or not token or any(char.isspace() for char in token):
+        raise SystemExit("Smoke test failed: tagging token file must contain exactly one token")
+
+
+def fetch_json(url):
+    request = Request(url, headers={"X-Tagging-Token": token}, method="GET")
+    return json.loads(urlopen(request, timeout=10).read().decode("utf-8"))
+
+
+roots = fetch_json("http://127.0.0.1:8767/roots")
+status = fetch_json("http://127.0.0.1:8767/snapshot/status")
+accent = fetch_json(
     "http://127.0.0.1:8767/cards/search?"
     + urlencode({"q": "fermenta\u00e7\u00e3o", "limit": 3})
 )
-PY
-)"
-curl -fsS http://127.0.0.1:8767/roots >/tmp/anki_roots_check.json
-curl -fsS http://127.0.0.1:8767/snapshot/status >/tmp/anki_snapshot_status_check.json
-curl -fsS "$ACCENT_SEARCH_URL" >/tmp/anki_search_accent_check.json
-curl -fsS 'http://127.0.0.1:8767/cards/search?q=fermentacao&limit=3' >/tmp/anki_search_ascii_check.json
-
-python3 - <<PY
-import json
-from pathlib import Path
-from urllib.parse import urlencode
-from urllib.request import urlopen
-
-roots = json.loads(Path("/tmp/anki_roots_check.json").read_text(encoding="utf-8"))
-status = json.loads(Path("/tmp/anki_snapshot_status_check.json").read_text(encoding="utf-8"))
-accent = json.loads(Path("/tmp/anki_search_accent_check.json").read_text(encoding="utf-8"))
-ascii_ = json.loads(Path("/tmp/anki_search_ascii_check.json").read_text(encoding="utf-8"))
+ascii_ = fetch_json("http://127.0.0.1:8767/cards/search?q=fermentacao&limit=3")
 
 roots_list = roots.get("roots")
 if not isinstance(roots_list, list) or not roots_list or not all(isinstance(r, str) and r for r in roots_list):
@@ -299,13 +303,13 @@ if not isinstance(status.get("total_decks"), int):
 
 target_deck = "#UFPR::Biologia::Citologia::Estruturas::• Citoplasma"
 deck_status_url = "http://127.0.0.1:8767/snapshot/status?" + urlencode({"deck": target_deck})
-deck_status = json.loads(urlopen(deck_status_url, timeout=10).read().decode("utf-8"))
+deck_status = fetch_json(deck_status_url)
 if deck_status.get("requested_deck_found"):
     deck_search_url = "http://127.0.0.1:8767/cards/search-real?" + urlencode({
         "deck": target_deck,
         "limit": 3,
     })
-    deck_search = json.loads(urlopen(deck_search_url, timeout=10).read().decode("utf-8"))
+    deck_search = fetch_json(deck_search_url)
     if deck_search.get("count", 0) <= 0:
         raise SystemExit(f"Smoke test failed for target deck card search: {deck_search}")
 else:

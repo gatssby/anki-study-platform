@@ -22,4 +22,9 @@ Estado validado em 2026-07-12: addon 3.0.0 carregado com política explícita `m
 
 Correção ativa: escritas de `addon_runtime.json` derivam `auto_publish_paused` diretamente do filesystem, registram também `auto_publish_mode` e `auto_publish_configured`, e não bloqueiam o Anki se a escrita do diagnóstico falhar. Reload final validado com `__init__.py` hash `36a2b657...`.
 
+Autenticação do snapshot consulta primeiro `ANKI_GPT_TAGGING_TOKEN` e depois o
+arquivo canônico `tagging_token.txt`. Ausência conhecida não é convertida em
+erro inesperado: o fluxo manual explica a configuração necessária e o fluxo
+automático apenas registra a causa, sem popup repetitivo.
+
 Após mudança do addon, reinicie manualmente o Anki e confirme hash; nunca force reload durante operação em voo.
