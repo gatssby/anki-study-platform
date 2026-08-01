@@ -12,6 +12,7 @@ Arquivos operacionais centrais:
 - `04_estetica_e_exatas.md`
 - `05_fluxo_decks_grandes.md`
 - `06_fluxo_fo_materiais_transcricoes.md`
+- `07_conversao_basic_para_cloze.md`
 
 Arquivo para colar no GPT Builder:
 
@@ -47,6 +48,8 @@ Arquivos de recorrencia:
 
 `06_fluxo_fo_materiais_transcricoes.md`: busca correta de materiais/PDFs Federal Online, escolha do PDF principal, extracao de texto, transcricoes, prioridade PDF > transcricao, bloqueios e exemplos de História I Aulas 01 a 08.
 
+`07_conversao_basic_para_cloze.md`: fonte de verdade da transformação semântica e estrutural Basic -> Cloze, campos reais, preservação de IDs/metadados, validações e revisão manual.
+
 `INSTRUCTIONS_CURTAS_GPT_BUILDER.md`: bloco curto para colar nas Instructions do GPT Builder. Deve apontar para os arquivos do Knowledge e nao repetir todos os detalhes.
 
 Arquivos em `Recorrência /`: referencia de prioridade por materia. Use quando a decisao editorial depender de probabilidade de cobranca ou foco de prova. Nao use esses arquivos como regra operacional de API, execution_mode ou schema.
@@ -64,6 +67,8 @@ Atualize `04_estetica_e_exatas.md` quando mudar padrao visual, uso de `.kw`, `.h
 Atualize `05_fluxo_decks_grandes.md` quando mudar materializacao, consolidacao, reorder global, Created/Added ou limites praticos de lote.
 
 Atualize `06_fluxo_fo_materiais_transcricoes.md` quando mudar endpoints FO, schema de extracao de PDF, estrutura de transcricoes, regra de prioridade PDF/transcricao ou exemplos de chamadas.
+
+Atualize `07_conversao_basic_para_cloze.md` quando mudar a semântica da conversão, o mapeamento `Front`/`Back` para `Text`/`Back Extra`, os bloqueios de segurança ou a operação in-place.
 
 Atualize arquivos de `Recorrência /` quando houver nova analise estatistica por materia ou ajuste de prioridade de prova.
 
@@ -106,6 +111,7 @@ Depois de qualquer mudanca nos arquivos de Knowledge:
 10. Confirmar que `.kw` e `.hint` continuam minimalistas e sem alterar conteudo conceitual.
 11. Confirmar que o limite de 30 `operations` do schema esta citado.
 12. Confirmar que endpoints especificos sao preferidos a endpoints genericos perigosos.
+13. Confirmar que conversão Basic -> Cloze aponta para `07`, rejeita `Front<br>{{c1::Back inteiro}}` e não conflita com normalização/criação/HTML.
 
 ## Checklist Depois De Alterar Schema OpenAPI
 

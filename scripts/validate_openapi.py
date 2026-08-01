@@ -15,7 +15,7 @@ SCHEMAS = (
 METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 COMPACT_SCHEMA = ROOT / "contracts" / "openapi" / "gpt-action-compact.openapi.json"
 GPT_KNOWLEDGE_SCHEMA = ROOT / "apps" / "anki-gpt" / "gpt-knowledge" / "schema gpt.json"
-EXPECTED_COMPACT_OPERATIONS = 23
+EXPECTED_COMPACT_OPERATIONS = 24
 
 
 def operations(document: dict) -> set[tuple[str, str]]:

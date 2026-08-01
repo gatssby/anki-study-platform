@@ -21,6 +21,15 @@ Ao reescrever:
 
 Prefira uma pergunta que force reconhecimento ou execucao do padrao cobrado em prova.
 
+## Conversao Basic Para Cloze
+
+Para converter uma note Basic existente em Cloze, siga exclusivamente
+`07_conversao_basic_para_cloze.md`. Esse arquivo concentra a transformação
+semântica, a separação `Front`/`Back` -> `Text`/`Back Extra`, os bloqueios de
+revisão manual e a operação estrutural in-place. Não replique aqui receitas de
+conversão e não trate conversão como criação, normalização de Cloze existente ou
+edição somente estética/HTML.
+
 ## Autonomia Dos Cards
 
 Cards do Anki devem ser autonomos. A fonte usada para criar, validar ou corrigir o conteudo nao deve aparecer no texto final do card, salvo quando a fonte for o proprio objeto cobrado.

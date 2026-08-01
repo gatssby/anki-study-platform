@@ -18,6 +18,7 @@ import unicodedata
 import uuid
 
 from fo_contracts import ContractError, validate_aulas_index_header
+from basic_to_cloze import validate_basic_to_cloze_fields
 from note_preconditions import build_note_precondition as build_canonical_note_precondition
 from state_store import (
     GENERATION_FILES,
@@ -28,7 +29,7 @@ from state_store import (
     publish_generation,
 )
 
-API_VERSION = "3.1.0"
+API_VERSION = "3.2.0"
 PROCESS_STARTED_AT = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 PROCESS_STARTED_MONOTONIC = time.monotonic()
 PROCESS_MODULE_HASH = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -125,6 +126,7 @@ ORGANIZATION_OPERATION_TYPES = {
     "create_notes",
     "replace_note_tags",
     "update_note_fields",
+    "convert_basic_to_cloze",
     "reorder_cards_by_material",
 }
 ORGANIZATION_FINAL_STATUSES = {"done", "failed", "partially_applied", "skipped"}
@@ -144,6 +146,7 @@ DRY_RUN_CAPABLE_OPERATION_TYPES = {
     "create_notes",
     "replace_note_tags",
     "update_note_fields",
+    "convert_basic_to_cloze",
     "reorder_cards_by_material",
 }
 DESTRUCTIVE_OR_STRUCTURAL_OPERATION_TYPES = {
@@ -152,6 +155,7 @@ DESTRUCTIVE_OR_STRUCTURAL_OPERATION_TYPES = {
     "undo_reorganization",
     "undo_last_reorganization",
     "reorder_cards_by_material",
+    "convert_basic_to_cloze",
 }
 UFPR_2027_CATEGORIES = {
     "literatura": {
@@ -2343,6 +2347,56 @@ def normalize_update_note_fields_payload(raw_payload):
     }
 
 
+def normalize_basic_to_cloze_payload(raw_payload):
+    if not isinstance(raw_payload, dict):
+        raise ValueError("invalid_payload")
+    note_id = raw_payload.get("note_id")
+    if isinstance(note_id, bool) or not isinstance(note_id, int) or note_id <= 0:
+        raise ValueError("invalid_note_id")
+
+    strings = {}
+    for key in ("source_front", "source_back", "text", "back_extra"):
+        value = raw_payload.get(key)
+        if not isinstance(value, str):
+            raise ValueError(f"invalid_{key}")
+        strings[key] = value
+    target_model_name = raw_payload.get(
+        "target_model_name",
+        "prettify-minimal-cloze",
+    )
+    if target_model_name != "prettify-minimal-cloze":
+        raise ValueError("unsupported_basic_to_cloze_target_note_type")
+
+    expected_content_hash = raw_payload.get("expected_content_hash")
+    if (
+        not isinstance(expected_content_hash, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", expected_content_hash)
+    ):
+        raise ValueError("missing_or_invalid_basic_to_cloze_precondition")
+    preconditions = {"expected_content_hash": expected_content_hash}
+    for key in ("expected_mod", "expected_usn", "expected_model_id"):
+        value = raw_payload.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+            raise ValueError(f"invalid_{key}")
+        if value is not None:
+            preconditions[key] = value
+
+    validation = validate_basic_to_cloze_fields(
+        front=strings["source_front"],
+        back=strings["source_back"],
+        text=strings["text"],
+        back_extra=strings["back_extra"],
+    )
+    return {
+        "note_id": note_id,
+        **strings,
+        "target_model_name": target_model_name,
+        **preconditions,
+        "validation": validation,
+        "dry_run": normalize_optional_bool(raw_payload, "dry_run", True),
+    }
+
+
 def normalize_note_field_updates_id(raw_updates_id, required=False):
     if raw_updates_id is None or raw_updates_id == "":
         if required:
@@ -2899,6 +2953,8 @@ def normalize_organization_payload(operation_type, raw_payload):
         return normalize_replace_note_tags_payload(raw_payload)
     if operation_type == "update_note_fields":
         return normalize_update_note_fields_payload(raw_payload)
+    if operation_type == "convert_basic_to_cloze":
+        return normalize_basic_to_cloze_payload(raw_payload)
     if operation_type == "reorder_cards_by_material":
         return normalize_reorder_cards_by_material_payload(raw_payload)
     raise ValueError("unsupported_operation_type")
@@ -6516,6 +6572,29 @@ class Handler(BaseHTTPRequestHandler):
                     self,
                     path,
                     lambda payload: build_create_cloze_note_operation(payload),
+                )
+
+            if path == "/organization/convert-basic-to-cloze":
+                return handle_action_logged_organization_post(
+                    self,
+                    path,
+                    lambda payload: build_organization_wrapper_operation(
+                        payload,
+                        "convert_basic_to_cloze",
+                        [
+                            "note_id",
+                            "source_front",
+                            "source_back",
+                            "text",
+                            "back_extra",
+                            "target_model_name",
+                            "expected_content_hash",
+                            "expected_mod",
+                            "expected_usn",
+                            "expected_model_id",
+                            "dry_run",
+                        ],
+                    ),
                 )
 
             if path in {

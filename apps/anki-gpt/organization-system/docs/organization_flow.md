@@ -326,6 +326,19 @@ Note types suportados nesta etapa:
 
 No note type `prettify-minimal-cloze`, os campos reais validados sao `Text` e `Back Extra`; os exemplos abaixo usam esses nomes.
 
+Conversão de uma note Basic existente não usa o fluxo de criação. A operação
+específica `convert_basic_to_cloze` muda `prettify-minimal-basic` (`Front`,
+`Back`) para `prettify-minimal-cloze` (`Text`, `Back Extra`) in-place, com
+precondição canônica obrigatória e validação estrutural antes de qualquer
+escrita. A semântica editorial tem uma única fonte de verdade em
+`gpt-knowledge/07_conversao_basic_para_cloze.md`; este documento descreve apenas
+o contrato operacional.
+
+A conversão preserva `note_id`, tags, deck, scheduling e os card IDs existentes.
+Novos IDs só podem aparecer quando `c2`, `c3` etc. exigirem cards adicionais.
+Notes já Cloze, note types/fields incompatíveis, perda de mídia/MathJax e a
+receita mecânica `Front<br>{{c1::Back inteiro}}` são rejeitados sem mutação.
+
 Quando `tags` e omitido em `create_note` ou em uma note de `create_notes`, a tag padrao aplicada e `GPT`. Tags adicionais devem ser enviadas apenas quando o usuario pedir explicitamente. Nao use `criado_por_gpt`, `teste_gpt` ou `origem:*` como tags automaticas.
 
 Para novo conteudo com destaque discreto, use `<span class="kw">...</span>` em palavras-chave estruturantes e `<span class="hint">...</span>` em hints de Cloze. Nao use `<font color="...">` nem `<span style="color: ...">` em cards novos, salvo pedido explicito.

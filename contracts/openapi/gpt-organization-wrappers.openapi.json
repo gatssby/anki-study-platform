@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Anki GPT Organization Wrapper API",
-    "version": "3.0.0"
+    "version": "3.2.0"
   },
   "servers": [
     {
@@ -758,6 +758,24 @@
           }
         ]
       }
+    },
+    "/organization/convert-basic-to-cloze": {
+      "post": {
+        "summary": "Converte Basic para Cloze in-place com precondicao",
+        "description": "Use apenas para a conversao estrutural definida em 07_conversao_basic_para_cloze.md. Rejeita pergunta mantida, Back inteiro mecanicamente clozado e perda de midia/MathJax.",
+        "operationId": "convertBasicToClozeOperation",
+        "security": [{"TaggingToken": []}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BasicToClozeRequest"}}}
+        },
+        "responses": {
+          "200": {"description": "Operacao criada", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BasicToClozeOperationCreatedResponse"}}}},
+          "400": {"description": "Conversao insegura ou payload invalido", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}},
+          "401": {"description": "Token ausente ou invalido", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}},
+          "500": {"description": "Erro interno sanitizado", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}}
+        }
+      }
     }
   },
   "components": {
@@ -769,6 +787,84 @@
       }
     },
     "schemas": {
+      "BasicToClozeRequest": {
+        "type": "object",
+        "allOf": [{"$ref": "#/components/schemas/ExecutionModeCompatibility"}],
+        "additionalProperties": false,
+        "required": ["note_id", "source_front", "source_back", "text", "back_extra", "expected_content_hash"],
+        "properties": {
+          "note_id": {"type": "integer"},
+          "source_front": {"type": "string"},
+          "source_back": {"type": "string"},
+          "text": {"type": "string", "description": "Frase declarativa natural; nunca Front<br>{{c1::Back inteiro}}."},
+          "back_extra": {"type": "string", "description": "Complemento sem cloze nem duplicacao de Text."},
+          "target_model_name": {"type": "string", "const": "prettify-minimal-cloze", "default": "prettify-minimal-cloze"},
+          "expected_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "expected_mod": {"type": "integer"},
+          "expected_usn": {"type": "integer"},
+          "expected_model_id": {"type": "integer"},
+          "execution_mode": {"type": "string", "enum": ["preview", "direct"], "default": "direct"},
+          "dry_run": {"type": "boolean", "default": false},
+          "confirmed_by_user": {"type": "boolean", "deprecated": true},
+          "requested_by": {"type": "string", "default": "gpt"},
+          "reason": {"type": "string"}
+        }
+      },
+      "BasicToClozeOperationCreatedResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ok", "operation", "operation_id", "status", "default_execution_mode"],
+        "properties": {
+          "ok": {"type": "boolean", "const": true},
+          "operation_id": {"type": "string", "pattern": "^orgop-"},
+          "status": {"type": "string", "const": "pending"},
+          "default_execution_mode": {"type": "string", "enum": ["preview", "direct"]},
+          "operation": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["operation_id", "operation_type", "operation_schema_version", "execution_mode", "dry_run", "risk_level", "payload", "status"],
+            "properties": {
+              "operation_id": {"type": "string", "pattern": "^orgop-"},
+              "operation_type": {"type": "string", "const": "convert_basic_to_cloze"},
+              "operation_schema_version": {"type": "integer", "const": 3},
+              "execution_mode": {"type": "string", "enum": ["preview", "direct"]},
+              "dry_run": {"type": "boolean"},
+              "risk_level": {"type": "string", "const": "structural"},
+              "payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["note_id", "source_front", "source_back", "text", "back_extra", "expected_content_hash", "execution_mode", "dry_run"],
+                "properties": {
+                  "note_id": {"type": "integer"},
+                  "source_front": {"type": "string"},
+                  "source_back": {"type": "string"},
+                  "text": {"type": "string"},
+                  "back_extra": {"type": "string"},
+                  "target_model_name": {"type": "string", "const": "prettify-minimal-cloze"},
+                  "expected_content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                  "expected_mod": {"type": "integer"},
+                  "expected_usn": {"type": "integer"},
+                  "expected_model_id": {"type": "integer"},
+                  "execution_mode": {"type": "string", "enum": ["preview", "direct"]},
+                  "dry_run": {"type": "boolean"},
+                  "validation": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "properties": {"cloze_numbers": {"type": "array", "items": {"type": "integer", "minimum": 1}}}
+                  }
+                }
+              },
+              "status": {"type": "string", "const": "pending"}
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error"],
+        "properties": {"error": {"type": "string"}}
+      },
       "ExecutionModeCompatibility": {
         "type": "object",
         "description": "Quando execution_mode e dry_run coexistem, direct exige false e preview exige true.",

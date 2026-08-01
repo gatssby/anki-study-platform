@@ -1,6 +1,6 @@
 # API
 
-API 3.1.0, OpenAPI 3.1.0. Schema completo público: `/openapi.json`; fonte
+API 3.2.0, OpenAPI 3.1.0. Schema completo público: `/openapi.json`; fonte
 canônica do schema GPT compacto:
 `contracts/openapi/gpt-action-compact.openapi.json`, exposta somente para
 importação por GET em
@@ -23,5 +23,16 @@ Categorias: decks/snapshot/cards/notes, FO/recorrência/UFPR, operações, inges
 
 Rotas operacionais internas não são todas anunciadas ao GPT. A matriz completa está em `audits/2026-07-11-post-activation/ROUTES_MATRIX_FINAL.md`.
 
-Quatro wrappers mutáveis aceitam POST e mantêm GET com headers de depreciação
-até 2026-10-01. O schema GPT público tem 23 operações.
+O schema GPT público tem 24 operações. Wrappers legados que ainda aceitam GET
+mantêm headers de depreciação até 2026-10-01; a conversão Basic -> Cloze é
+somente POST.
+# Conversão Basic para Cloze
+
+`POST /organization/convert-basic-to-cloze` cria a operação estrutural
+`convert_basic_to_cloze`. Ela exige `note_id`, `source_front`, `source_back`,
+`text`, `back_extra` e `expected_content_hash`; aceite também as precondições
+canônicas opcionais publicadas pela leitura. A operação converte in-place e não
+deve ser substituída por criação de uma nova Cloze ou por `update_note_fields`.
+
+As regras semânticas pertencem exclusivamente a
+`gpt-knowledge/07_conversao_basic_para_cloze.md`.

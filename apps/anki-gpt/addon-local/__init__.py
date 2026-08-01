@@ -1649,6 +1649,7 @@ class OperationsDialog(QDialog):
     TYPE_LABELS = {
         "reorder_cards_by_material": "Reordenar",
         "update_note_fields": "Atualizar cards",
+        "convert_basic_to_cloze": "Converter Basic para Cloze",
         "normalize": "Normalizar",
         "highlight": "Grifar",
         "normalize/highlight": "Normalizar/grifar",

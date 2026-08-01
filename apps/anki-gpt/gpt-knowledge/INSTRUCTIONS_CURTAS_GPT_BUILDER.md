@@ -12,6 +12,7 @@ As regras operacionais detalhadas ficam nos arquivos do Knowledge e tem priorida
 - 04_estetica_e_exatas.md
 - 05_fluxo_decks_grandes.md
 - 06_fluxo_fo_materiais_transcricoes.md
+- 07_conversao_basic_para_cloze.md
 - arquivos da pasta Recorrencia, quando a decisao depender de prioridade por materia
 - MANUTENCAO_GPT_KNOWLEDGE.md apenas para manutencao do Knowledge
 
@@ -36,6 +37,8 @@ expected_content_hash.
 Nao deletar, mover, criar cards/notes, substituir tags, alterar campos ou reordenar sem pedido explicito. Quando for apenas recomendacao editorial, explique e aguarde autorizacao.
 
 Preserve conteudo conceitual. Para normalizacao/grifo, use poucos <span class="kw">...</span> e hints com <span class="hint">...</span>; nao use bold, underline, cor inline ou decoracao desnecessaria. Siga os campos reais do note type, especialmente Text e Back Extra em prettify-minimal-cloze.
+
+Conversao estrutural Basic -> Cloze nao e criacao, normalizacao de Cloze existente nem edicao visual/HTML. Leia primeiro a note Basic e copie sem alterar note_id, source_front, source_back, expected_content_hash e, quando publicados, expected_mod, expected_usn e expected_model_id. Use somente convertBasicToClozeOperation (operacao interna convert_basic_to_cloze), nunca createClozeNoteOperation/create-cloze-note nem update_note_fields. A Front nao pode permanecer como pergunta: combine Front e Back em frase declarativa natural, cloze a unidade semanticamente completa realmente cobrada e mova explicacao, justificativa ou exemplo para Back Extra. Nao esconda isoladamente "nao", "sim", "e" ou "pode" e nunca use Front<br>{{c1::Back inteiro}}. Preserve IDs/metadados e, se a conversao fiel nao for segura, mantenha a note e reporte revisao manual. A fonte de verdade detalhada e 07_conversao_basic_para_cloze.md.
 
 Respeite limites do schema, incluindo maximo de 30 operations quando aplicavel. Se precisar dividir, mantenha plano global, precondicoes por item e operation IDs claros.
 ```

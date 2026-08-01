@@ -19,6 +19,11 @@ except Exception:
     from html_utils import strip_html_text, strip_visual_wrappers
 
 try:
+    from .basic_to_cloze import validate_basic_to_cloze_fields
+except Exception:
+    from basic_to_cloze import validate_basic_to_cloze_fields
+
+try:
     from .runtime_paths import append_log_resilient, get_runtime_paths
 except ImportError:
     from runtime_paths import append_log_resilient, get_runtime_paths
@@ -50,6 +55,8 @@ SUPPORTED_CREATE_NOTE_TYPES = {
     "prettify-minimal-basic_reverse",
     "prettify-minimal-cloze",
 }
+SUPPORTED_BASIC_TO_CLOZE_SOURCE_NOTE_TYPES = {"prettify-minimal-basic"}
+DEFAULT_BASIC_TO_CLOZE_TARGET_NOTE_TYPE = "prettify-minimal-cloze"
 DEFAULT_CREATE_NOTE_TAGS = ["GPT"]
 MAX_CREATE_NOTES_PER_OPERATION = 20
 ORGANIZATION_MAX_OPERATIONS_PER_RUN = 10
@@ -78,6 +85,7 @@ ORGANIZATION_OPERATION_TYPES = {
     "create_notes",
     "replace_note_tags",
     "update_note_fields",
+    "convert_basic_to_cloze",
     "reorder_cards_by_material",
 }
 DRY_RUN_CAPABLE_OPERATION_TYPES = {
@@ -87,6 +95,7 @@ DRY_RUN_CAPABLE_OPERATION_TYPES = {
     "create_notes",
     "replace_note_tags",
     "update_note_fields",
+    "convert_basic_to_cloze",
     "reorder_cards_by_material",
 }
 
@@ -2879,6 +2888,219 @@ def create_notes(notes: list[dict], dry_run: bool = True) -> dict:
         "notes": results,
         "errors": errors,
     }
+
+
+def basic_to_cloze_card_state(note_id: int) -> list[dict]:
+    return [
+        {
+            "card_id": int(card_attr(card, "id")),
+            "deck_id": int(card_attr(card, "did")),
+            "ord": int(card_attr(card, "ord")),
+            "scheduling": scheduling_snapshot(card),
+        }
+        for card in note_cards(note_id)
+    ]
+
+
+def validate_basic_to_cloze_conversion(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("invalid_basic_to_cloze_payload")
+    note_id = payload.get("note_id")
+    if isinstance(note_id, bool) or not isinstance(note_id, int) or note_id <= 0:
+        raise ValueError("invalid_note_id")
+    for key in ("source_front", "source_back", "text", "back_extra"):
+        if not isinstance(payload.get(key), str):
+            raise ValueError(f"invalid_{key}")
+    target_model_name = payload.get(
+        "target_model_name",
+        DEFAULT_BASIC_TO_CLOZE_TARGET_NOTE_TYPE,
+    )
+    if target_model_name != DEFAULT_BASIC_TO_CLOZE_TARGET_NOTE_TYPE:
+        raise ValueError("unsupported_basic_to_cloze_target_note_type")
+
+    note = get_note(note_id)
+    source_model = mw.col.models.get(note.mid)
+    if not source_model:
+        raise ValueError(f"note_model_not_found: {note_id}")
+    source_model_name = str(source_model.get("name", ""))
+    if source_model_name not in SUPPORTED_BASIC_TO_CLOZE_SOURCE_NOTE_TYPES:
+        if "cloze" in source_model_name.casefold():
+            raise ValueError("basic_to_cloze_source_already_cloze")
+        raise ValueError("unsupported_basic_to_cloze_source_note_type")
+    source_field_names = model_field_names(source_model)
+    if source_field_names != ["Front", "Back"]:
+        raise ValueError("basic_to_cloze_source_fields_not_exact")
+
+    current_precondition = note_precondition(note, source_field_names)
+    validate_note_precondition(payload, current_precondition, require=True)
+    source_front = get_note_field_value(note, "Front", source_field_names)
+    source_back = get_note_field_value(note, "Back", source_field_names)
+    if payload["source_front"] != source_front:
+        raise ValueError("basic_to_cloze_source_front_conflict")
+    if payload["source_back"] != source_back:
+        raise ValueError("basic_to_cloze_source_back_conflict")
+
+    target_model = get_model(target_model_name)
+    target_field_names = model_field_names(target_model)
+    if target_field_names != ["Text", "Back Extra"]:
+        raise ValueError("basic_to_cloze_target_fields_not_exact")
+    candidate_fields = {
+        "Text": payload["text"],
+        "Back Extra": payload["back_extra"],
+    }
+    cloze_validation = validate_cloze_fields(target_model, candidate_fields)
+    semantic_validation = validate_basic_to_cloze_fields(
+        front=source_front,
+        back=source_back,
+        text=payload["text"],
+        back_extra=payload["back_extra"],
+    )
+    card_state = basic_to_cloze_card_state(note_id)
+    return {
+        "note": note,
+        "note_id": note_id,
+        "source_model": source_model,
+        "source_model_id": int(source_model.get("id", note.mid)),
+        "source_model_name": source_model_name,
+        "source_field_names": source_field_names,
+        "source_front": source_front,
+        "source_back": source_back,
+        "source_tags": list(getattr(note, "tags", []) or []),
+        "target_model": target_model,
+        "target_model_id": int(target_model.get("id", 0)),
+        "target_model_name": target_model_name,
+        "target_field_names": target_field_names,
+        "candidate_fields": candidate_fields,
+        "cloze_numbers": cloze_validation["cloze_numbers"],
+        "semantic_validation": semantic_validation,
+        "card_state_before": card_state,
+        "card_ids_before": [item["card_id"] for item in card_state],
+    }
+
+
+def rollback_basic_to_cloze_conversion() -> None:
+    undo = getattr(mw.col, "undo", None)
+    if not callable(undo):
+        raise RuntimeError("basic_to_cloze_undo_unavailable")
+    undo()
+    save_collection(strict=True)
+
+
+def convert_basic_to_cloze(payload: dict, dry_run: bool = True) -> dict:
+    dry_run = normalize_bool(dry_run, True)
+    validated = validate_basic_to_cloze_conversion(payload)
+    result = {
+        "operation": "convert_basic_to_cloze",
+        "dry_run": dry_run,
+        "converted": False,
+        "note_id": validated["note_id"],
+        "source_model_id": validated["source_model_id"],
+        "source_model_name": validated["source_model_name"],
+        "target_model_id": validated["target_model_id"],
+        "target_model_name": validated["target_model_name"],
+        "field_mapping": {"Front": "Text", "Back": "Back Extra"},
+        "fields": validated["candidate_fields"],
+        "tags_before": validated["source_tags"],
+        "tags_after": list(validated["source_tags"]),
+        "card_ids_before": validated["card_ids_before"],
+        "card_ids_after": list(validated["card_ids_before"]),
+        "preserved_card_ids": list(validated["card_ids_before"]),
+        "new_card_ids": [],
+        "card_state_before": validated["card_state_before"],
+        "card_state_after": list(validated["card_state_before"]),
+        "cloze_numbers": validated["cloze_numbers"],
+        "semantic_validation": validated["semantic_validation"],
+    }
+    if dry_run:
+        return result
+
+    if not callable(getattr(mw.col, "add_custom_undo_entry", None)):
+        raise RuntimeError("basic_to_cloze_custom_undo_unavailable")
+    if not callable(getattr(mw.col, "merge_undo_entries", None)):
+        raise RuntimeError("basic_to_cloze_merge_undo_unavailable")
+
+    undo_entry = begin_custom_undo_entry("Convert Basic to Cloze")
+    if undo_entry is None:
+        raise RuntimeError("basic_to_cloze_custom_undo_unavailable")
+    merged_undo = False
+    try:
+        note = validated["note"]
+        set_note_field_value(note, "Front", payload["text"], validated["source_field_names"])
+        set_note_field_value(note, "Back", payload["back_extra"], validated["source_field_names"])
+        persist_note(note)
+
+        change_info = mw.col.models.change_notetype_info(
+            old_notetype_id=validated["source_model_id"],
+            new_notetype_id=validated["target_model_id"],
+        )
+        change_request = change_info.input
+        del change_request.new_fields[:]
+        change_request.new_fields.extend([0, 1])
+        del change_request.note_ids[:]
+        change_request.note_ids.append(validated["note_id"])
+        mw.col.models.change_notetype_of_notes(change_request)
+
+        if not finish_custom_undo_entry(undo_entry):
+            raise RuntimeError("basic_to_cloze_merge_undo_failed")
+        merged_undo = True
+        save_collection(strict=True)
+
+        changed_note = get_note(validated["note_id"])
+        changed_model = mw.col.models.get(changed_note.mid)
+        changed_field_names = model_field_names(changed_model)
+        if int(changed_note.id) != validated["note_id"]:
+            raise RuntimeError("basic_to_cloze_note_id_changed")
+        if int(changed_note.mid) != validated["target_model_id"]:
+            raise RuntimeError("basic_to_cloze_target_model_not_applied")
+        if changed_field_names != validated["target_field_names"]:
+            raise RuntimeError("basic_to_cloze_target_fields_changed")
+        if get_note_field_value(changed_note, "Text", changed_field_names) != payload["text"]:
+            raise RuntimeError("basic_to_cloze_text_not_preserved")
+        if get_note_field_value(changed_note, "Back Extra", changed_field_names) != payload["back_extra"]:
+            raise RuntimeError("basic_to_cloze_extra_not_preserved")
+        if list(getattr(changed_note, "tags", []) or []) != validated["source_tags"]:
+            raise RuntimeError("basic_to_cloze_tags_changed")
+
+        card_state_after = basic_to_cloze_card_state(validated["note_id"])
+        card_ids_after = [item["card_id"] for item in card_state_after]
+        preserved_card_ids = sorted(set(validated["card_ids_before"]) & set(card_ids_after))
+        if preserved_card_ids != sorted(validated["card_ids_before"]):
+            raise RuntimeError("basic_to_cloze_existing_card_ids_changed")
+        before_by_id = {
+            item["card_id"]: item
+            for item in validated["card_state_before"]
+        }
+        after_by_id = {item["card_id"]: item for item in card_state_after}
+        for card_id in validated["card_ids_before"]:
+            if before_by_id[card_id]["deck_id"] != after_by_id[card_id]["deck_id"]:
+                raise RuntimeError("basic_to_cloze_deck_changed")
+            if before_by_id[card_id]["scheduling"] != after_by_id[card_id]["scheduling"]:
+                raise RuntimeError("basic_to_cloze_scheduling_changed")
+
+        result.update({
+            "converted": True,
+            "tags_after": list(getattr(changed_note, "tags", []) or []),
+            "card_ids_after": card_ids_after,
+            "preserved_card_ids": preserved_card_ids,
+            "new_card_ids": sorted(set(card_ids_after) - set(validated["card_ids_before"])),
+            "card_state_after": card_state_after,
+        })
+        return result
+    except Exception as original_error:
+        if not merged_undo:
+            try:
+                merged_undo = finish_custom_undo_entry(undo_entry)
+            except Exception:
+                merged_undo = False
+        if not merged_undo:
+            raise RuntimeError(
+                "basic_to_cloze_atomic_rollback_unavailable"
+            ) from original_error
+        try:
+            rollback_basic_to_cloze_conversion()
+        except Exception as rollback_error:
+            raise RuntimeError("basic_to_cloze_atomic_rollback_failed") from rollback_error
+        raise
 
 
 def update_cards_deck(cards: list, target_deck_id: int) -> None:
@@ -5866,6 +6088,14 @@ def execute_organization_operation(operation: dict) -> dict:
                 result["note_ids_count"] = payload.get("note_ids_count")
             if result.get("errors"):
                 raise OperationFailedWithResult("update_note_fields_atomic_failure", result)
+        elif operation_type == "convert_basic_to_cloze":
+            operation_schema_version = int(operation.get("operation_schema_version") or 1)
+            validate_operation_age(
+                operation,
+                operation_schema_version,
+                dry_run=dry_run,
+            )
+            result = convert_basic_to_cloze(payload, dry_run=dry_run)
         elif operation_type == "reorder_cards_by_material":
             reorder_payload = hydrate_reorder_payload_from_order_id(payload)
             result = reorder_cards_by_material(

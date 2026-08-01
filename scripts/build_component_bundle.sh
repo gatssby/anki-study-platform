@@ -28,6 +28,9 @@ case "$COMPONENT" in
       "$ROOT/packages/anki-contracts/note_preconditions.py" \
       "$OUTPUT_DIR/scripts/note_preconditions.py"
     install -m 0644 \
+      "$ROOT/packages/anki-contracts/basic_to_cloze.py" \
+      "$OUTPUT_DIR/scripts/basic_to_cloze.py"
+    install -m 0644 \
       "$ROOT/contracts/openapi/gpt-action-compact.openapi.json" \
       "$OUTPUT_DIR/scripts/gpt-action-compact.openapi.json"
     ;;
@@ -42,6 +45,9 @@ case "$COMPONENT" in
     install -m 0644 \
       "$ROOT/packages/anki-contracts/note_preconditions.py" \
       "$OUTPUT_DIR/addon-local/note_preconditions.py"
+    install -m 0644 \
+      "$ROOT/packages/anki-contracts/basic_to_cloze.py" \
+      "$OUTPUT_DIR/addon-local/basic_to_cloze.py"
     rsync -aL "$ROOT/apps/anki-gpt/local-tools/anki_publish.sh" "$OUTPUT_DIR/local-tools/"
     ;;
   *)

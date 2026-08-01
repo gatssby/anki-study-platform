@@ -690,7 +690,7 @@ def test_gpt_openapi_documents_concrete_note_updates_json_contract():
         }))
 
 
-def test_compact_openapi_is_gpt_builder_compatible_and_preserves_23_operations():
+def test_compact_openapi_is_gpt_builder_compatible_and_preserves_24_operations():
     schema_path = REPO_ROOT / "contracts" / "openapi" / "gpt-action-compact.openapi.json"
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     validator_module = load_module(
@@ -737,8 +737,8 @@ def test_compact_openapi_is_gpt_builder_compatible_and_preserves_23_operations()
         for method, operation in item.items()
         if method in validator_module.METHODS
     ]
-    assert len(operation_ids) == 23
-    assert len(set(operation_ids)) == 23
+    assert len(operation_ids) == 24
+    assert len(set(operation_ids)) == 24
     assert "X-Tagging-Token" not in schema_path.read_text(encoding="utf-8")
 
 
@@ -3789,3 +3789,112 @@ def test_backend_pending_filter_never_returns_persisted_done_operation(
         pending["operation_id"],
         done["operation_id"],
     }
+
+
+def acceptance_basic_to_cloze_payload():
+    return {
+        "note_id": 123,
+        "source_front": "Em uma teia alimentar, o nível trófico de um organismo é fixo?",
+        "source_back": "Não. O mesmo organismo pode ocupar diferentes níveis tróficos.",
+        "text": "Em uma teia alimentar, o nível trófico de um organismo {{c1::não é fixo}}.",
+        "back_extra": "O mesmo organismo pode ocupar diferentes níveis tróficos conforme a cadeia alimentar considerada.",
+        "expected_content_hash": "a" * 64,
+        "expected_mod": 20,
+        "expected_usn": 30,
+        "expected_model_id": 10,
+        "execution_mode": "direct",
+        "dry_run": False,
+    }
+
+
+def test_backend_builds_specific_structural_basic_to_cloze_operation(query_api):
+    payload = acceptance_basic_to_cloze_payload()
+    normalized = query_api.normalize_basic_to_cloze_payload(payload)
+    assert normalized["validation"]["cloze_numbers"] == [1]
+    assert normalized["expected_content_hash"] == "a" * 64
+
+    operation = query_api.build_organization_operation({
+        "operation_type": "convert_basic_to_cloze",
+        "payload": payload,
+        "execution_mode": "direct",
+        "dry_run": False,
+        "requested_by": "gpt",
+    })
+    assert operation["operation_type"] == "convert_basic_to_cloze"
+    assert operation["risk_level"] == "structural"
+    assert operation["payload"]["text"] == payload["text"]
+
+
+def test_backend_rejects_mechanical_basic_to_cloze_join(query_api):
+    payload = acceptance_basic_to_cloze_payload()
+    payload["text"] = (
+        payload["source_front"]
+        + "<br>{{c1::"
+        + payload["source_back"]
+        + "}}"
+    )
+    with pytest.raises(ValueError, match="question_not_declarative"):
+        query_api.normalize_basic_to_cloze_payload(payload)
+
+
+def test_addon_basic_to_cloze_preview_preserves_metadata(
+    organization, monkeypatch
+):
+    note = FakeAnkiNote(
+        123,
+        {
+            "Front": "Em uma teia alimentar, o nível trófico de um organismo é fixo?",
+            "Back": "Não. O mesmo organismo pode ocupar diferentes níveis tróficos.",
+        },
+        mid=10,
+        mod=20,
+        usn=30,
+        tags=["FO", "preservar"],
+    )
+    source_model = {
+        "id": 10,
+        "name": "prettify-minimal-basic",
+        "type": 0,
+        "flds": [{"name": "Front"}, {"name": "Back"}],
+        "tmpls": [{"name": "Card 1"}],
+    }
+    target_model = {
+        "id": 11,
+        "name": "prettify-minimal-cloze",
+        "type": 1,
+        "flds": [{"name": "Text"}, {"name": "Back Extra"}],
+        "tmpls": [{"name": "Card 1"}],
+    }
+
+    class FakeModels:
+        def get(self, model_id):
+            return source_model if int(model_id) == 10 else target_model
+
+        def by_name(self, name):
+            return target_model if name == target_model["name"] else source_model
+
+    monkeypatch.setattr(organization, "get_note", lambda note_id: note)
+    monkeypatch.setattr(
+        organization,
+        "basic_to_cloze_card_state",
+        lambda note_id: [{
+            "card_id": 999,
+            "deck_id": 7,
+            "ord": 0,
+            "scheduling": {"due": 1},
+        }],
+    )
+    organization.mw = types.SimpleNamespace(
+        col=types.SimpleNamespace(models=FakeModels())
+    )
+    payload = acceptance_basic_to_cloze_payload()
+    payload.update(organization.note_precondition(note, ["Front", "Back"]))
+    payload["expected_model_id"] = 10
+
+    result = organization.convert_basic_to_cloze(payload, dry_run=True)
+    assert result["converted"] is False
+    assert result["note_id"] == 123
+    assert result["tags_before"] == result["tags_after"] == ["FO", "preservar"]
+    assert result["card_ids_before"] == result["card_ids_after"] == [999]
+    assert note["Front"] == payload["source_front"]
+    assert note["Back"] == payload["source_back"]
