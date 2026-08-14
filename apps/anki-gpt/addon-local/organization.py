@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import types
 import unicodedata
 
 try:
@@ -99,8 +100,6 @@ def _precondition_conflict(update: dict, current: dict, require: bool) -> str | 
     if require and not expected_hash:
         return "missing_note_precondition"
 
-    # model_id is part of content_hash, so inspect it first to avoid masking a
-    # model transition as a generic note_content_conflict.
     expected_model = update.get("expected_model_id")
     if expected_model is not None and expected_model != current.get("expected_model_id"):
         return "note_model_conflict"
@@ -218,7 +217,7 @@ def update_note_fields(
 ) -> dict:
     """Apply direct-v2 safely per note instead of discarding a whole batch.
 
-    Schema/integrity errors still keep the batch atomic.  Optimistic-concurrency
+    Schema/integrity errors still keep the batch atomic. Optimistic-concurrency
     failures are isolated to the conflicting note; every other note whose
     preconditions pass is committed in one Anki update_notes() call.
     """
@@ -382,8 +381,6 @@ def update_note_fields(
     undo_entry = None
     undo_available = False
 
-    # Preserve the old all-or-nothing behavior for malformed/non-concurrency
-    # errors.  Only optimistic-concurrency conflicts are safe to isolate.
     can_apply_valid_subset = not hard_errors
 
     if can_apply_valid_subset and not dry_run:
@@ -415,10 +412,9 @@ def update_note_fields(
                 )
         except Exception as apply_error:
             rollback_notes = []
+            rollback_scope = set(applied_note_ids or planned_note_ids)
             for item in prepared:
-                if item["note_id"] not in set(applied_note_ids or planned_note_ids):
-                    continue
-                if not item["changed_fields"]:
+                if item["note_id"] not in rollback_scope or not item["changed_fields"]:
                     continue
                 try:
                     for field_name, before in item["original_fields"].items():
@@ -460,7 +456,6 @@ def update_note_fields(
         for item in prepared
     ]
     partial_apply = bool(conflict_errors and applied_note_ids)
-    atomic = not partial_apply
     result = {
         "operation": "update_note_fields",
         "dry_run": dry_run,
@@ -469,10 +464,12 @@ def update_note_fields(
         "planned_note_ids": planned_note_ids,
         "affected_note_ids": applied_note_ids if not dry_run else planned_note_ids,
         "conflicted_note_ids": [error["note_id"] for error in conflict_errors],
-        "hard_error_note_ids": [error["note_id"] for error in hard_errors if error.get("note_id") is not None],
+        "hard_error_note_ids": [
+            error["note_id"] for error in hard_errors if error.get("note_id") is not None
+        ],
         "notes": notes_result,
         "errors": errors,
-        "atomic": atomic,
+        "atomic": not partial_apply,
         "atomic_scope": "validated_subset" if partial_apply else "operation",
         "partial_apply": partial_apply,
         "rolled_back": rolled_back,
@@ -706,10 +703,6 @@ def _stable_sync_did_finish(parent) -> None:
     if not acquisition["acquired"]:
         return
 
-    # Apply guarded organization updates before the legacy tag queue.  Field
-    # updates and tag operations can then both succeed serially instead of a
-    # tag mutation invalidating an expected_content_hash immediately before
-    # direct-v2 validation.
     try:
         if parent.organization_module is None:
             parent.log(f"organization queue unavailable: {parent.ORGANIZATION_IMPORT_ERROR}")
@@ -721,9 +714,6 @@ def _stable_sync_did_finish(parent) -> None:
             parent.organization_module.process_organization_queue()
         parent.process_tagging_queue()
     except Exception as exc:
-        # A queue may have partially changed the collection.  Continue to the
-        # snapshot so the backend is never left intentionally on the pre-queue
-        # generation.
         parent.log(f"hook queue processing warning {type(exc).__name__}: {exc}")
 
     try:
@@ -803,17 +793,30 @@ def _schedule_parent_hook_install() -> None:
 
         QTimer.singleShot(0, _install_parent_sync_hook)
     except Exception:
-        # Tests and headless import paths may not expose QTimer.  Runtime Anki
-        # does, and the reliability overrides above remain active regardless.
         pass
 
 
-# Patch the globals used internally by the frozen implementation.  Functions
-# defined in organization_legacy resolve their collaborators from that module's
-# namespace, so rebinding is required in addition to re-exporting here.
 _legacy.update_note_fields = update_note_fields
 _legacy.execute_organization_operation = execute_organization_operation
 _legacy.organization_result_change_summary = organization_result_change_summary
 _legacy.process_organization_queue = process_organization_queue
 
+
+class _MirroredOrganizationModule(types.ModuleType):
+    """Keep legacy globals synchronized with public-module monkeypatches.
+
+    Production uses the same objects already, but the regression suite replaces
+    dependencies such as mw/get_note/save_collection on the public module. The
+    mirror makes those test doubles exercise the real wrapper path instead of
+    bypassing it or accidentally reaching Anki runtime objects.
+    """
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        legacy = self.__dict__.get("_legacy")
+        if legacy is not None and not name.startswith("_") and hasattr(legacy, name):
+            setattr(legacy, name, value)
+
+
+sys.modules[__name__].__class__ = _MirroredOrganizationModule
 _schedule_parent_hook_install()
