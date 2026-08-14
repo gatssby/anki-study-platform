@@ -19,6 +19,7 @@ on:
       - "packages/safe-io/**"
       - "contracts/openapi/**"
       - "scripts/**"
+      - ".github/workflows/anki-gpt-ci.yml"
 
 jobs:
   validate:
@@ -30,7 +31,33 @@ jobs:
           python-version: "3.11"
       - run: pip install -r requirements-dev.txt
       - run: python -m py_compile services/anki-api/*.py apps/anki-gpt/addon-local/*.py
-      - run: python -m pytest -q apps/anki-gpt/tests tests
+      - name: pytest
+        shell: bash
+        run: |
+          set +e
+          python -m pytest -q --tb=short --junitxml=pytest-results.xml apps/anki-gpt/tests tests
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            python - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse("pytest-results.xml").getroot()
+          emitted = 0
+          for case in root.iter("testcase"):
+              failure = case.find("failure")
+              error = case.find("error")
+              node = failure if failure is not None else error
+              if node is None:
+                  continue
+              name = f"{case.get('classname', '')}::{case.get('name', '')}"
+              text = (node.get("message") or "") + "\n" + (node.text or "")
+              text = text.strip().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print(f"::error title=pytest {name}::{text[:7000]}")
+              emitted += 1
+              if emitted >= 20:
+                  break
+          PY
+          fi
+          exit "$status"
       - run: python scripts/validate_openapi.py
       - run: bash -n services/anki-api/*.sh apps/anki-gpt/local-tools/*.sh scripts/*.sh
       - run: ruff check --select E9,F63,F7,F82 services/anki-api packages scripts tests
