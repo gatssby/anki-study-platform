@@ -4,11 +4,12 @@ import argparse
 import sqlite3
 import tempfile
 import unittest
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
 from app.db import initialize_or_migrate_database
-from app.fo_planner import build_fo_plan, select_eligible_fo_lessons
+from app.fo_planner import _pedagogical_order, build_fo_plan, select_eligible_fo_lessons
 from app.reprogramming import ScheduleSettings, build_reprogram_report
 from scripts.generate_adaptive_schedule import apply_assignments, build_report
 
@@ -107,6 +108,49 @@ class SharedFOPlannerUnitTest(unittest.TestCase):
         kwargs = dict(start_date=date(2026, 7, 10), end_date=date(2026, 7, 15), include_weekends=True)
         self.assertEqual(build_fo_plan(self.eligible(base), **kwargs).date_map,
                          build_fo_plan(self.eligible(shifted), **kwargs).date_map)
+
+    def test_different_durations_never_reorder_lessons_from_the_same_subject(self):
+        lessons = self.eligible([
+            row(f"POR2A{i}", "POR", i, module_number=2, duration_seconds=i * 60)
+            for i in range(1, 11)
+        ])
+        plan = build_fo_plan(
+            lessons,
+            start_date=date(2026, 7, 10),
+            end_date=date(2026, 7, 11),
+            include_weekends=True,
+        )
+
+        self.assertEqual(
+            [assignment.lesson.lesson_number for assignment in plan.assignments],
+            list(range(1, 11)),
+        )
+
+    def test_assignments_preserve_the_exact_pedagogical_order_across_subjects(self):
+        start_date = date(2026, 7, 10)
+        lessons = self.eligible([
+            row(f"{subject}{number}", subject, number)
+            for subject in ("BIO", "MAT", "HIS", "POR")
+            for number in range(1, 3)
+        ])
+        pedagogical = _pedagogical_order(lessons, start_date)
+        lessons = [
+            replace(lesson, duration_seconds=(index + 1) * 60)
+            for index, lesson in enumerate(pedagogical)
+        ]
+        pedagogical = _pedagogical_order(lessons, start_date)
+
+        plan = build_fo_plan(
+            lessons,
+            start_date=start_date,
+            end_date=date(2026, 7, 11),
+            include_weekends=True,
+        )
+
+        self.assertEqual(
+            [assignment.lesson.lesson_code for assignment in plan.assignments],
+            [lesson.lesson_code for lesson in pedagogical],
+        )
 
 
 class SharedFOPlannerIntegrationTest(unittest.TestCase):

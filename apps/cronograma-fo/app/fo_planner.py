@@ -248,24 +248,11 @@ def build_fo_plan(
         )
     else:
         quotas = _weighted_lesson_quotas(len(ordered), days)
-        pending = list(ordered)
-        total_duration = sum(item.effective_duration_seconds for item in pending)
+        ordered_lessons = iter(ordered)
         for day, quota in zip(days, quotas):
-            target_duration = (total_duration * quota / len(ordered)) if ordered else 0
-            used_duration = 0
             for slot_index in range(1, quota + 1):
-                lookahead = pending[:4]
-                selected_index = min(
-                    range(len(lookahead)),
-                    key=lambda index: (
-                        abs(target_duration - (used_duration + lookahead[index].effective_duration_seconds)),
-                        index,
-                        lookahead[index].lesson_code,
-                    ),
-                )
-                lesson = pending.pop(selected_index)
+                lesson = next(ordered_lessons)
                 assignments.append(Assignment(day, lesson, slot_index))
-                used_duration += lesson.effective_duration_seconds
     return FOPlan(
         start_date, end_date, include_weekends, tuple(lesson_list), tuple(days), tuple(skipped),
         tuple(assignments), tuple(unallocated),
