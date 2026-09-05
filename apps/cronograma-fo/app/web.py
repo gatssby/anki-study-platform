@@ -1167,6 +1167,7 @@ def create_app(database_path: str | Path | None = None) -> Flask:
                 report = apply_reprogramming(conn=conn, settings=settings, db_path=db_path)
                 conn.commit()
             except ValueError as exc:
+                conn.rollback()
                 return json_error(str(exc), 400)
 
         return jsonify({"ok": True, "report": serialize_report(report)})

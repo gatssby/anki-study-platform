@@ -500,6 +500,12 @@ def build_reprogram_report(
         distribution_diagnostics,
         expected_track_counts=summarize_candidate_counts_by_track(candidates),
     )
+    validation_errors.extend(
+        validate_planned_pedagogical_order(
+            ordered_fo_lessons=ordered_fo_lessons,
+            planned_days=planned_days,
+        )
+    )
     fo_plan_summary = {
         "scope": "standalone_fo_only_without_un_capacity_competition",
         "standalone_is_feasible": fo_plan.is_feasible,
@@ -594,8 +600,14 @@ def apply_reprogramming(
     settings: ScheduleSettings,
     as_of_date: date | None = None,
     db_path: str | Path = DEFAULT_DB_PATH,
+    diagnostic_lesson_prefixes: tuple[str, ...] = (),
 ) -> ReprogramReport:
-    report = build_reprogram_report(conn=conn, settings=settings, as_of_date=as_of_date)
+    report = build_reprogram_report(
+        conn=conn,
+        settings=settings,
+        as_of_date=as_of_date,
+        diagnostic_lesson_prefixes=diagnostic_lesson_prefixes,
+    )
     if not report.feasible:
         raise ValueError(
             "Aplicação recusada porque a distribuição contém erros estruturais."
@@ -612,6 +624,10 @@ def apply_reprogramming(
     write_schedule_dates(conn=conn, planned_days=report.available_days)
     conn.execute("DELETE FROM daily_assignments")
     conn.execute("DELETE FROM un_daily_assignments")
+    persisted_schedule_errors = validate_persisted_schedule(
+        conn=conn,
+        planned_days=report.available_days,
+    )
     sync_fo_exercise_tasks(conn)
     reschedule_unmoved_exercise_tasks(conn)
     report.distribution_diagnostics = diagnose_distribution(
@@ -626,6 +642,7 @@ def apply_reprogramming(
             for row in report.track_distribution
         },
     )
+    report.validation_errors.extend(persisted_schedule_errors)
     if report.validation_errors:
         raise ValueError(
             "Validacao pos-aplicacao falhou: " + "; ".join(report.validation_errors)
@@ -825,6 +842,93 @@ def distribute_tracks_without_limits(
     return []
 
 
+def planned_assignment_positions(
+    planned_days: list[PlannedDay],
+) -> dict[str, tuple[str, int]]:
+    """Return the exact date/slot values that ``write_schedule_dates`` persists."""
+    positions: dict[str, tuple[str, int]] = {}
+    per_track_daily_slots: dict[tuple[str, date], int] = defaultdict(int)
+    for day in planned_days:
+        for assignment in day.assignments:
+            track_code = assignment.lesson.track_code
+            slot_key = (track_code, day.date_value)
+            per_track_daily_slots[slot_key] += 1
+            positions[assignment.lesson.lesson_code] = (
+                day.date_value.isoformat(),
+                per_track_daily_slots[slot_key],
+            )
+    return positions
+
+
+def validate_planned_pedagogical_order(
+    *,
+    ordered_fo_lessons: list[Any],
+    planned_days: list[PlannedDay],
+) -> list[str]:
+    """Reject any plan that does not consume the canonical FO sequence stably."""
+    expected_codes = [lesson.lesson_code for lesson in ordered_fo_lessons]
+    actual_codes = [
+        assignment.lesson.lesson_code
+        for day in planned_days
+        for assignment in day.assignments
+        if assignment.lesson.track_code == "FO"
+    ]
+    errors: list[str] = []
+    if actual_codes != expected_codes:
+        errors.append(
+            "A distribuição FO não consumiu integralmente a ordem pedagógica canônica."
+        )
+
+    positions = planned_assignment_positions(planned_days)
+    for previous_code, current_code in zip(expected_codes, expected_codes[1:]):
+        previous_position = positions.get(previous_code)
+        current_position = positions.get(current_code)
+        if previous_position is None or current_position is None:
+            continue
+        if previous_position > current_position:
+            errors.append(
+                "Monotonicidade pedagógica violada: "
+                f"{previous_code}={previous_position[0]}/slot-{previous_position[1]} > "
+                f"{current_code}={current_position[0]}/slot-{current_position[1]}."
+            )
+            break
+    return errors
+
+
+def validate_persisted_schedule(
+    *,
+    conn: sqlite3.Connection,
+    planned_days: list[PlannedDay],
+) -> list[str]:
+    """Read back the Base source of truth and require an exact plan match."""
+    expected = planned_assignment_positions(planned_days)
+    persisted = {
+        row["lesson_code"]: (row["recommended_date"], int(row["slot_index"]))
+        for row in conn.execute(
+            "SELECT lesson_code, recommended_date, slot_index FROM lessons"
+        ).fetchall()
+        if row["lesson_code"] in expected
+    }
+    errors: list[str] = []
+    for lesson_code, expected_position in expected.items():
+        actual_position = persisted.get(lesson_code)
+        if actual_position != expected_position:
+            errors.append(
+                "Persistência divergente do plano para "
+                f"{lesson_code}: esperado={expected_position[0]}/slot-{expected_position[1]} "
+                f"persistido={actual_position}."
+            )
+            break
+
+    for table_name in ("daily_assignments", "un_daily_assignments"):
+        remaining = scalar_int(conn, f"SELECT COUNT(*) FROM {table_name}")
+        if remaining:
+            errors.append(
+                f"Cache antigo {table_name} não foi substituído: {remaining} linha(s) restante(s)."
+            )
+    return errors
+
+
 def weighted_day_quotas(total_lessons: int, days: list[PlannedDay]) -> list[int]:
     """Allocate lesson counts proportionally; percentages are weights, not caps."""
     if total_lessons <= 0 or not days:
@@ -916,18 +1020,17 @@ def persist_auto_cuts(conn: sqlite3.Connection) -> None:
 
 def write_schedule_dates(conn: sqlite3.Connection, planned_days: list[PlannedDay]) -> None:
     track_start_dates = fetch_track_start_dates(conn)
-    per_track_daily_slots: dict[tuple[str, date], int] = defaultdict(int)
+    positions = planned_assignment_positions(planned_days)
 
     for day in planned_days:
         if not day.assignments:
             continue
         for assignment in day.assignments:
             track_code = assignment.lesson.track_code
-            slot_key = (track_code, day.date_value)
-            per_track_daily_slots[slot_key] += 1
+            _, slot_index = positions[assignment.lesson.lesson_code]
             start_date = track_start_dates.get(track_code, day.date_value)
             week_number = ((day.date_value - start_date).days // 7) + 1
-            conn.execute(
+            cursor = conn.execute(
                 """
                 UPDATE lessons
                 SET recommended_date = ?,
@@ -943,10 +1046,15 @@ def write_schedule_dates(conn: sqlite3.Connection, planned_days: list[PlannedDay
                     max(week_number, 1),
                     day.date_value.isoweekday(),
                     PORTUGUESE_DAY_NAMES[day.date_value.isoweekday()],
-                    per_track_daily_slots[slot_key],
+                    slot_index,
                     assignment.lesson.lesson_code,
                 ),
             )
+            if cursor.rowcount != 1:
+                raise ValueError(
+                    "Falha ao persistir a programação de "
+                    f"{assignment.lesson.lesson_code}: linhas atualizadas={cursor.rowcount}."
+                )
 
 
 def fetch_track_start_dates(conn: sqlite3.Connection) -> dict[str, date]:
@@ -1101,11 +1209,19 @@ def build_lesson_order_diagnostics(
     if not normalized_prefixes:
         return []
 
-    projected_date_by_code = {
-        assignment.lesson.lesson_code: day.date_value.isoformat()
+    projected_fo_codes = {
+        assignment.lesson.lesson_code
         for day in planned_days
         for assignment in day.assignments
         if assignment.lesson.track_code == "FO"
+    }
+    projected_position_by_code = {
+        code: position
+        for code, position in planned_assignment_positions(planned_days).items()
+        if code in projected_fo_codes
+    }
+    projected_date_by_code = {
+        code: position[0] for code, position in projected_position_by_code.items()
     }
     actual_projected_codes = [
         assignment.lesson.lesson_code
@@ -1139,9 +1255,24 @@ def build_lesson_order_diagnostics(
         errors: list[str] = []
         if actual_codes != expected_projected_codes:
             errors.append("A ordem projetada diverge da ordem pedagógica canônica.")
-        canonical_projected_dates = [projected_date_by_code[code] for code in expected_projected_codes]
-        if canonical_projected_dates != sorted(canonical_projected_dates):
-            errors.append("Uma aula posterior foi projetada antes de sua predecessora.")
+        first_violation: dict[str, Any] | None = None
+        for previous_code, current_code in zip(
+            expected_projected_codes,
+            expected_projected_codes[1:],
+        ):
+            previous_position = projected_position_by_code[previous_code]
+            current_position = projected_position_by_code[current_code]
+            if previous_position > current_position:
+                errors.append("Uma aula posterior foi projetada antes de sua predecessora.")
+                first_violation = {
+                    "previous_lesson_code": previous_code,
+                    "previous_date": previous_position[0],
+                    "previous_slot_index": previous_position[1],
+                    "lesson_code": current_code,
+                    "date": current_position[0],
+                    "slot_index": current_position[1],
+                }
+                break
         unallocated_predecessor = False
         for code in (item for item in canonical_codes if item.upper().startswith(prefix)):
             if code in unallocated_codes:
@@ -1180,7 +1311,13 @@ def build_lesson_order_diagnostics(
                     "status": status,
                     "reason": reason,
                     "projected_date": projected_date_by_code.get(code),
+                    "projected_slot_index": (
+                        projected_position_by_code[code][1]
+                        if code in projected_position_by_code
+                        else None
+                    ),
                     "current_date": row.get("recommended_date"),
+                    "current_slot_index": row.get("slot_index"),
                 }
             )
 
@@ -1188,6 +1325,8 @@ def build_lesson_order_diagnostics(
             {
                 "prefix": prefix,
                 "is_valid": not errors,
+                "pedagogical_monotonicity": "ok" if not errors else "fail",
+                "first_violation": first_violation,
                 "projected_lesson_count": len(actual_codes),
                 "unallocated_lesson_count": sum(
                     entry["status"] == "unallocated" for entry in entries

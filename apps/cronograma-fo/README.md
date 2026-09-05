@@ -244,7 +244,7 @@ python3 scripts/reprogram_schedule.py \
   --diagnose-lesson-prefix POR2
 ```
 
-O diagnóstico imprime código, status, data atual e data projetada em ordem pedagógica. As contagens `aulas_nao_alocadas_FO` e `aulas_nao_alocadas_UN` devem permanecer em zero quando houver ao menos um dia disponível; `diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas` mantém a visão FO isolada para compatibilidade.
+O diagnóstico imprime código, status, data/slot atual e data/slot projetado em ordem pedagógica. A linha `pedagogical_monotonicity=ok` confirma que nenhuma sucessora ficou antes de sua predecessora; em caso de falha, o primeiro par divergente é impresso. As contagens `aulas_nao_alocadas_FO` e `aulas_nao_alocadas_UN` devem permanecer em zero quando houver ao menos um dia disponível; `diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas` mantém a visão FO isolada para compatibilidade.
 
 ### Apply
 
@@ -263,7 +263,9 @@ python3 scripts/reprogram_schedule.py \
   --apply
 ```
 
-O `apply` distribui todas as aulas elegíveis de FO + UN até a data-alvo. Os minutos configurados são apenas referências informativas: carga alta, déficit teórico e dias acima desses valores não bloqueiam aulas nem a aplicação. Dias com indisponibilidade real (`capacity_percent=0`) continuam excluídos; percentuais entre 1 e 100 funcionam somente como peso relativo. A aplicação cria backup automático antes de alterar datas recomendadas e limpa os snapshots diários para a agenda ser reconstruída com o novo plano.
+O `apply` distribui todas as aulas elegíveis de FO + UN até a data-alvo. Os minutos configurados são apenas referências informativas: carga alta, déficit teórico e dias acima desses valores não bloqueiam aulas nem a aplicação. Dias com indisponibilidade real (`capacity_percent=0`) continuam excluídos; percentuais entre 1 e 100 funcionam somente como peso relativo.
+
+Para FO, a sequência produzida por `_pedagogical_order()` é consumida de modo estável e integral: duração só influencia diagnósticos de carga, nunca a escolha da próxima aula. A aplicação cria backup automático, substitui as datas e slots de todas as aulas pendentes elegíveis, limpa os snapshots diários antigos e lê novamente `lessons.recommended_date`/`lessons.slot_index` — a fonte canônica exibida pela Base — exigindo correspondência exata com o plano antes do commit.
 
 ### Recalculo manual com configuracao persistida
 

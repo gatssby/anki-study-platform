@@ -437,6 +437,7 @@ def handle_recalculate(args: argparse.Namespace) -> int:
                 settings=effective_settings,
                 as_of_date=as_of_date,
                 db_path=args.db,
+                diagnostic_lesson_prefixes=tuple(args.diagnose_lesson_prefix or ()),
             )
             conn.commit()
             print_report(report, mode="apply")
@@ -624,6 +625,19 @@ def print_lesson_order_diagnostics(diagnostics: list[dict[str, Any]]) -> None:
     print("diagnostico_ordem_pedagogica:")
     for diagnostic in diagnostics:
         print(
+            f"pedagogical_monotonicity={diagnostic['pedagogical_monotonicity']}"
+        )
+        violation = diagnostic.get("first_violation")
+        if violation:
+            print(
+                f"{violation['previous_lesson_code']} date={violation['previous_date']} "
+                f"slot={violation['previous_slot_index']}"
+            )
+            print(
+                f"{violation['lesson_code']} date={violation['date']} "
+                f"slot={violation['slot_index']}"
+            )
+        print(
             f"- prefixo={diagnostic['prefix']} "
             f"status={'ok' if diagnostic['is_valid'] else 'erro'} "
             f"projetadas={diagnostic['projected_lesson_count']} "
@@ -635,7 +649,9 @@ def print_lesson_order_diagnostics(diagnostics: list[dict[str, Any]]) -> None:
             print(
                 f"  codigo={entry['lesson_code']} status={entry['status']} "
                 f"data_projetada={entry['projected_date'] or '-'} "
+                f"slot_projetado={entry['projected_slot_index'] or '-'} "
                 f"data_atual={entry['current_date'] or '-'} "
+                f"slot_atual={entry['current_slot_index'] or '-'} "
                 f"motivo={entry['reason'] or '-'}"
             )
 

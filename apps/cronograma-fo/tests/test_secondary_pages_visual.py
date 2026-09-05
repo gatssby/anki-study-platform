@@ -5,6 +5,7 @@ import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import app.review_questions as review_questions_module
 from app.db import connect_db, init_db
@@ -175,6 +176,35 @@ class SecondaryPagesVisualTest(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/api/reprogramming/unavailability/{entry_id}").status_code, 200)
         dry_run = self.client.post("/api/reprogramming/dry-run", json={})
         self.assertIn(dry_run.status_code, {200, 400})
+
+    def test_reprogramming_apply_rolls_back_when_post_write_validation_fails(self) -> None:
+        with connect_db(self.db_path) as conn:
+            conn.execute(
+                "UPDATE schedule_settings SET target_finish_date = '2026-09-10' WHERE id = 1"
+            )
+            conn.commit()
+        dry_run = self.client.post("/api/reprogramming/dry-run", json={})
+        self.assertEqual(dry_run.status_code, 200)
+        simulation_token = dry_run.get_json()["report"]["simulation_token"]
+
+        def fail_after_write(*, conn, **_kwargs):
+            conn.execute(
+                "UPDATE lessons SET recommended_date = '2099-01-01' WHERE lesson_code = 'FO-1'"
+            )
+            raise ValueError("fixture post-write validation failure")
+
+        with patch("app.web.apply_reprogramming", side_effect=fail_after_write):
+            response = self.client.post(
+                "/api/reprogramming/apply",
+                json={"simulation_token": simulation_token},
+            )
+        self.assertEqual(response.status_code, 400)
+
+        with connect_db(self.db_path) as conn:
+            persisted_date = conn.execute(
+                "SELECT recommended_date FROM lessons WHERE lesson_code = 'FO-1'"
+            ).fetchone()[0]
+        self.assertEqual(persisted_date, "2026-07-06")
 
 
 if __name__ == "__main__":
