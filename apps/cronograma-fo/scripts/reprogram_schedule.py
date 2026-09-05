@@ -515,6 +515,7 @@ def print_report(report: Any, mode: str) -> None:
     print(f"prova_configurada: {format_date(report.exam_date)}")
     print(f"data_alvo_termino: {report.target_finish_date.isoformat()}")
     print(f"data_referencia: {report.as_of_date.isoformat()}")
+    print("unidade_carga_capacidade: minutos")
     print(f"dias_disponiveis: {len(available_days)}")
     print(f"dias_indisponiveis: {len(unavailable_days)}")
     print(f"indisponibilidades_cadastradas: {len(report.explicit_unavailability)}")
@@ -576,15 +577,14 @@ def print_report(report: Any, mode: str) -> None:
             f"aulas={row['lesson_count']} carga={row['units']}"
         )
 
+    print(f"dias_acima_do_teto: {len(report.overflow_days)}")
     if report.overflow_days:
-        print("dias_acima_do_teto:")
+        print("detalhes_dias_acima_do_teto:")
         for row in report.overflow_days:
             print(
                 f"- {row['date']} carga={row['assigned_units']} capacidade={row['capacity_units']} "
                 f"overflow={row['overflow_units']}"
             )
-    else:
-        print("dias_acima_do_teto: 0")
 
 
 def print_distribution_summary(diagnostics: dict[str, Any]) -> None:

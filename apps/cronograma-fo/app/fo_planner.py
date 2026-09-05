@@ -92,7 +92,7 @@ class FOPlan:
 
     @property
     def capacity_mode(self) -> str:
-        return "unlimited"
+        return "enforced"
 
     @property
     def total_load_seconds(self) -> int:
@@ -108,7 +108,7 @@ class FOPlan:
 
     @property
     def raw_capacity_deficit_seconds(self) -> int:
-        return 0
+        return max(self.total_load_seconds - self.total_capacity_seconds, 0)
 
     @property
     def unallocated_load_seconds(self) -> int:
@@ -116,8 +116,7 @@ class FOPlan:
 
     @property
     def deficit_seconds(self) -> int:
-        """Minutes never create a deficit in unlimited mode."""
-        return 0
+        return self.raw_capacity_deficit_seconds
 
     @property
     def first_date(self) -> date | None:
@@ -156,10 +155,10 @@ class FOPlan:
                 "minutes": round(used_seconds / 60, 2),
                 "capacity_minutes": day.capacity_minutes,
                 "capacity_seconds": day.capacity_seconds,
-                "configured_capacity_ignored": True,
-                "capacity_enforced": False,
-                "remaining_seconds": None,
-                "remaining_minutes": None,
+                "configured_capacity_ignored": False,
+                "capacity_enforced": True,
+                "remaining_seconds": max(day.capacity_seconds - used_seconds, 0),
+                "remaining_minutes": round(max(day.capacity_seconds - used_seconds, 0) / 60, 2),
                 "lesson_codes": [item.lesson.lesson_code for item in by_date[day.date_value]],
             })
         return result
@@ -247,12 +246,40 @@ def build_fo_plan(
             for lesson in ordered
         )
     else:
-        quotas = _weighted_lesson_quotas(len(ordered), days)
-        ordered_lessons = iter(ordered)
-        for day, quota in zip(days, quotas):
-            for slot_index in range(1, quota + 1):
-                lesson = next(ordered_lessons)
-                assignments.append(Assignment(day, lesson, slot_index))
+        used_seconds = [0] * len(days)
+        slots_by_day = [0] * len(days)
+        day_index = 0
+        max_capacity_seconds = max((day.capacity_seconds for day in days), default=0)
+        for lesson in ordered:
+            duration_seconds = lesson.effective_duration_seconds
+            if duration_seconds > max_capacity_seconds:
+                unallocated.append(
+                    UnallocatedLesson(
+                        lesson,
+                        duration_seconds,
+                        max_capacity_seconds,
+                        "duration_exceeds_daily_capacity",
+                    )
+                )
+                continue
+            while (
+                day_index < len(days)
+                and used_seconds[day_index] + duration_seconds > days[day_index].capacity_seconds
+            ):
+                day_index += 1
+            if day_index >= len(days):
+                unallocated.append(
+                    UnallocatedLesson(
+                        lesson,
+                        duration_seconds,
+                        max_capacity_seconds,
+                        "insufficient_remaining_capacity",
+                    )
+                )
+                continue
+            used_seconds[day_index] += duration_seconds
+            slots_by_day[day_index] += 1
+            assignments.append(Assignment(days[day_index], lesson, slots_by_day[day_index]))
     return FOPlan(
         start_date, end_date, include_weekends, tuple(lesson_list), tuple(days), tuple(skipped),
         tuple(assignments), tuple(unallocated),
@@ -285,31 +312,6 @@ def _pedagogical_order(lessons: list[Lesson], start: date) -> list[Lesson]:
         subject_counts[subject] += 1
         area_counts[lesson.area] += 1
     return ordered
-
-
-def _weighted_lesson_quotas(total_lessons: int, days: list[StudyDay]) -> list[int]:
-    """Balance lesson counts; partial availability is a relative weight, never a cap."""
-    if total_lessons <= 0 or not days:
-        return [0] * len(days)
-    quotas = [0] * len(days)
-    if total_lessons < len(days):
-        for index in range(total_lessons):
-            quotas[index] = 1
-        return quotas
-
-    # Keep every eligible day non-empty while lessons remain, then distribute the
-    # remainder proportionally to availability percentages with largest remainders.
-    quotas = [1] * len(days)
-    remainder = total_lessons - len(days)
-    weight_total = sum(day.capacity_percent for day in days)
-    exact = [remainder * day.capacity_percent / weight_total for day in days]
-    floors = [math.floor(value) for value in exact]
-    quotas = [base + extra for base, extra in zip(quotas, floors)]
-    leftovers = remainder - sum(floors)
-    order = sorted(range(len(days)), key=lambda index: (-(exact[index] - floors[index]), days[index].date_value))
-    for index in order[:leftovers]:
-        quotas[index] += 1
-    return quotas
 
 
 def _area_key(area: str) -> tuple[int, str]:

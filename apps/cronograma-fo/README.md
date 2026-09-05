@@ -252,7 +252,7 @@ python3 scripts/reprogram_schedule.py \
   --apply
 ```
 
-O `apply` cria backup automatico antes de alterar datas recomendadas e limpa os snapshots diarios para a agenda ser reconstruida com o novo plano.
+O `apply` só prossegue quando toda a carga FO + UN cabe na capacidade diária configurada até a data-alvo. Em cenário inviável ele aborta antes do backup e de qualquer alteração. Quando viável, cria backup automático antes de alterar datas recomendadas e limpa os snapshots diários para a agenda ser reconstruída com o novo plano.
 
 ### Recalculo manual com configuracao persistida
 

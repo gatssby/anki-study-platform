@@ -265,6 +265,10 @@
       metricRow("Carga restante total", formatUnits(state.lastReport.remaining_total_units)),
       metricRow("Carga restante FO", formatUnits(state.lastReport.remaining_fo_units)),
       metricRow("Carga restante UN", formatUnits(state.lastReport.remaining_un_units)),
+      metricRow("Capacidade total até o fim", formatUnits(state.lastReport.total_capacity_units)),
+      metricRow("Déficit de capacidade", formatUnits(state.lastReport.capacity_deficit_units)),
+      metricRow("Status do plano", state.lastReport.feasible ? "Viável" : "Inviável"),
+      metricRow("Dias acima do teto", (state.lastReport.overflow_days || []).length),
       metricRow("Média diária estimada (informativa)", formatUnits(Math.round(state.lastReport.daily_goal_units))),
       metricRow("Aulas pendentes", state.lastReport.pending_lessons),
       metricRow("Revisão/livre cortadas", state.lastReport.cut_review_free),
@@ -317,7 +321,7 @@
           '<article class="reprogramming-list__item">' +
           "<strong>" + toBrDate(row.date) + "</strong>" +
           "<span>" + row.lesson_count + " aula(s)</span>" +
-          "<span>" + formatUnits(row.units) + "</span>" +
+          "<span>" + formatUnits(row.units) + " / " + formatUnits(row.capacity_units) + "</span>" +
           "</article>"
         );
       }).join("") +

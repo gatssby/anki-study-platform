@@ -505,8 +505,8 @@ def print_report(report: dict[str, Any]) -> None:
     print(f"aulas_nao_alocadas: {report['unallocated_lesson_count']}")
     print(f"carga_total_segundos: {report['total_load_seconds']}")
     print(f"aulas_com_duracao_estimada_45min: {report['estimated_duration_lesson_count']}")
-    print("modo_capacidade: unlimited")
-    print(f"capacidade_configurada_ignorada_segundos: {report['total_capacity_seconds']}")
+    print(f"modo_capacidade: {report['capacity_mode']}")
+    print(f"capacidade_total_segundos: {report['total_capacity_seconds']}")
     print(f"deficit_segundos: {report['deficit_seconds']}")
     print(f"total_dias_disponiveis: {report['available_days']}")
     print(f"total_dias_indisponiveis_pulados: {report['skipped_days']}")
@@ -660,7 +660,7 @@ def build_report(conn: sqlite3.Connection, args: argparse.Namespace, db_path: Pa
         "allocated_lessons": len(plan.assignments),
         "is_feasible": plan.is_feasible,
         "capacity_mode": plan.capacity_mode,
-        "configured_daily_minutes_ignored": True,
+        "configured_daily_minutes_ignored": False,
         "total_load_seconds": plan.total_load_seconds,
         "estimated_duration_lesson_count": len(plan.estimated_duration_lesson_codes),
         "estimated_duration_lesson_codes": list(plan.estimated_duration_lesson_codes),

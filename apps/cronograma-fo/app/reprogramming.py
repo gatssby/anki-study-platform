@@ -4,7 +4,7 @@ import hashlib
 import json
 import sqlite3
 import unicodedata
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from .backup import create_timestamped_backup, extract_backup_database
 from .db import DEFAULT_DB_PATH
 from .exercises import reschedule_unmoved_exercise_tasks, sync_fo_exercise_tasks
-from .fo_planner import build_fo_plan, select_eligible_fo_lessons
+from .fo_planner import _pedagogical_order, build_fo_plan, select_eligible_fo_lessons
 
 
 PORTUGUESE_DAY_NAMES = {
@@ -31,6 +31,7 @@ TRACK_ORDER = {"FO": 0, "UN": 1}
 DEFAULT_WEEKDAY_MINUTES = 240
 DEFAULT_SATURDAY_MINUTES = 180
 DEFAULT_SUNDAY_MINUTES = 180
+DEFAULT_LESSON_MINUTES = 45
 TRACK_DATE_SOURCES = {
     "FO": {
         "source_table": "lessons",
@@ -108,7 +109,7 @@ class PlannedDay:
 
     @property
     def overflow_units(self) -> int:
-        return 0
+        return max(self.assigned_units - self.capacity_units, 0)
 
 
 @dataclass
@@ -143,7 +144,12 @@ class ReprogramReport:
 
     @property
     def feasible(self) -> bool:
-        return bool(self.fo_plan_summary.get("is_feasible", True)) and not self.validation_errors
+        return (
+            self.capacity_deficit_units == 0
+            and not self.overflow_days
+            and self.assignment_count == self.pending_lesson_count
+            and not self.validation_errors
+        )
 
 
 def current_local_date() -> date:
@@ -400,8 +406,9 @@ def build_reprogram_report(
     un_rows = [row for row in rows if row["track_code"] == "UN"]
     fo_lessons, _, _ = select_eligible_fo_lessons(fo_rows)
     row_by_code = {row["lesson_code"]: row for row in fo_rows}
-    fo_candidates = {
-        lesson.lesson_code: LessonCandidate(
+    ordered_fo_lessons = _pedagogical_order(fo_lessons, effective_as_of)
+    fo_candidates = [
+        LessonCandidate(
             lesson_code=lesson.lesson_code,
             track_code="FO",
             subject_prefix=lesson.subject_prefix,
@@ -411,8 +418,8 @@ def build_reprogram_report(
             current_date=max(lesson.recommended_date, effective_as_of),
             row=row_by_code[lesson.lesson_code],
         )
-        for index, lesson in enumerate(fo_lessons, start=1)
-    }
+        for index, lesson in enumerate(ordered_fo_lessons, start=1)
+    ]
     un_candidates, un_cut_summary = build_lesson_candidates(rows=un_rows, as_of_date=effective_as_of)
     _, fo_cut_summary = build_lesson_candidates(rows=fo_rows, as_of_date=effective_as_of)
     cut_summary = {key: fo_cut_summary.get(key, 0) + un_cut_summary.get(key, 0) for key in fo_cut_summary}
@@ -438,19 +445,15 @@ def build_reprogram_report(
         max_daily_minutes_saturday=normalized.max_daily_minutes_saturday,
         max_daily_minutes_sunday=normalized.max_daily_minutes_sunday,
     )
-    day_by_date = {day.date_value: day for day in planned_days}
-    distribute_candidates_by_average(candidates=un_candidates, planned_days=planned_days)
-    for item in fo_plan.assignments:
-        day_by_date[item.day.date_value].assignments.append(
-            PlannedAssignment(lesson=fo_candidates[item.lesson.lesson_code], date_value=item.day.date_value)
-        )
-    candidates = list(fo_candidates.values()) + un_candidates
+    candidates = fo_candidates + un_candidates
+    unallocated_candidates = distribute_tracks_with_capacity(
+        fo_candidates=fo_candidates,
+        un_candidates=un_candidates,
+        planned_days=planned_days,
+    )
     total_remaining_units = sum(candidate.weight_units for candidate in candidates)
     available_day_count = sum(1 for day in planned_days if day.is_available)
     unavailable_day_count = len(planned_days) - available_day_count
-
-    if total_remaining_units > 0 and available_day_count == 0:
-        raise ValueError("Não há dias disponíveis entre hoje e a data-alvo para distribuir as aulas pendentes.")
 
     remaining_units_by_track = summarize_remaining_units_by_track(candidates)
     generated_days = [day for day in planned_days if day.assignments]
@@ -467,7 +470,7 @@ def build_reprogram_report(
     fo_plan_summary = {
         "is_feasible": fo_plan.is_feasible,
         "capacity_mode": fo_plan.capacity_mode,
-        "configured_daily_minutes_ignored": True,
+        "configured_daily_minutes_ignored": False,
         "total_load_seconds": fo_plan.total_load_seconds,
         "estimated_duration_lesson_count": len(fo_plan.estimated_duration_lesson_codes),
         "estimated_duration_lesson_codes": list(fo_plan.estimated_duration_lesson_codes),
@@ -496,9 +499,18 @@ def build_reprogram_report(
             f"Plano FO inviável: {len(fo_plan.unallocated_lessons)} aulas não alocadas, "
             f"{fo_plan.unallocated_load_seconds} segundos não alocados."
         )
-    total_capacity_units = 0
-    capacity_deficit_units = 0
-    overflow_days = []
+    if unallocated_candidates:
+        validation_errors.append(
+            f"Plano geral inviável: {len(unallocated_candidates)} aulas não alocadas dentro "
+            "da capacidade diária e da data-alvo."
+        )
+    total_capacity_units = sum(day.capacity_units for day in planned_days)
+    capacity_deficit_units = max(total_remaining_units - total_capacity_units, 0)
+    overflow_days = find_overflow_days(planned_days)
+    fo_plan_summary["overall_unallocated_lesson_count"] = len(unallocated_candidates)
+    fo_plan_summary["overall_unallocated_lesson_codes"] = [
+        candidate.lesson_code for candidate in unallocated_candidates
+    ]
     simulation_token = build_simulation_token(
         settings=normalized,
         unavailability=unavailability,
@@ -524,7 +536,7 @@ def build_reprogram_report(
         total_capacity_units=total_capacity_units,
         capacity_deficit_units=capacity_deficit_units,
         overflow_days=overflow_days,
-        assignment_count=len(fo_plan.assignments) + len(un_candidates),
+        assignment_count=sum(len(day.assignments) for day in planned_days),
         pending_lesson_count=len(candidates),
         available_day_count=available_day_count,
         unavailable_day_count=unavailable_day_count,
@@ -542,9 +554,10 @@ def apply_reprogramming(
     db_path: str | Path = DEFAULT_DB_PATH,
 ) -> ReprogramReport:
     report = build_reprogram_report(conn=conn, settings=settings, as_of_date=as_of_date)
-    if not report.fo_plan_summary.get("is_feasible", False):
+    if not report.feasible:
         raise ValueError(
-            "Plano FO inviável; aplicação recusada porque há aulas não alocadas até a data final."
+            "Plano inviável; aplicação recusada porque a carga FO + UN não cabe nos tetos "
+            "diários até a data final."
         )
     backup_dir = Path(db_path).expanduser().resolve().parent / "backups"
     backup_path = create_timestamped_backup(
@@ -692,46 +705,101 @@ def build_planned_days(
     target_finish_date: date,
     unavailability: list[ScheduleUnavailability],
 ) -> list[PlannedDay]:
-    unavailable_dates = build_unavailable_dates(unavailability)
     days: list[PlannedDay] = []
     current_day = as_of_date
     while current_day <= target_finish_date:
         is_weekend = current_day.isoweekday() in {6, 7}
-        is_available = current_day not in unavailable_dates and (settings.include_weekends or not is_weekend)
+        capacity_percent = effective_capacity_percent(current_day, unavailability)
+        if is_weekend and not settings.include_weekends:
+            capacity_percent = 0
+        base_capacity = configured_daily_capacity_minutes(current_day, settings)
+        capacity_minutes = max(base_capacity * capacity_percent // 100, 0)
         days.append(
             PlannedDay(
                 date_value=current_day,
-                is_available=is_available,
-                capacity_units=0,
-                effective_capacity_percent=100 if is_available else 0,
+                is_available=capacity_minutes > 0,
+                capacity_units=capacity_minutes,
+                effective_capacity_percent=capacity_percent,
             )
         )
         current_day += timedelta(days=1)
     return days
 
 
-def distribute_candidates_by_average(
-    candidates: list[LessonCandidate],
+def configured_daily_capacity_minutes(day: date, settings: ScheduleSettings) -> int:
+    if day.isoweekday() == 6:
+        return max(int(settings.max_daily_minutes_saturday), 0)
+    if day.isoweekday() == 7:
+        return max(int(settings.max_daily_minutes_sunday), 0)
+    return max(int(settings.max_daily_minutes_weekday), 0)
+
+
+def effective_capacity_percent(
+    day: date,
+    unavailability: list[ScheduleUnavailability],
+) -> int:
+    matching = [
+        max(0, min(int(entry.capacity_percent), 100))
+        for entry in unavailability
+        if entry.start_date <= day <= entry.end_date
+    ]
+    return min(matching, default=100)
+
+
+def distribute_tracks_with_capacity(
+    fo_candidates: list[LessonCandidate],
+    un_candidates: list[LessonCandidate],
     planned_days: list[PlannedDay],
-) -> None:
+) -> list[LessonCandidate]:
+    """Share daily capacity fairly without changing either track's internal order."""
+    queues = {
+        "FO": deque(fo_candidates),
+        "UN": deque(un_candidates),
+    }
+    total_by_track = {
+        track_code: sum(candidate.weight_units for candidate in queue)
+        for track_code, queue in queues.items()
+    }
+    assigned_by_track = {"FO": 0, "UN": 0}
     available_days = [day for day in planned_days if day.is_available]
-    if not candidates or not available_days:
-        return
+    if not available_days:
+        return list(fo_candidates) + list(un_candidates)
 
-    total_units = sum(candidate.weight_units for candidate in candidates)
-    average_units = total_units / len(available_days) if available_days else 0.0
     for day in available_days:
-        day.capacity_units = int(round(average_units))
+        while any(queues.values()):
+            remaining_capacity = day.capacity_units - day.assigned_units
+            fitting_tracks = [
+                track_code
+                for track_code in ("FO", "UN")
+                if queues[track_code] and queues[track_code][0].weight_units <= remaining_capacity
+            ]
+            if not fitting_tracks:
+                break
+            track_code = min(
+                fitting_tracks,
+                key=lambda code: (
+                    assigned_by_track[code] / total_by_track[code] if total_by_track[code] else 1.0,
+                    TRACK_ORDER[code],
+                ),
+            )
+            candidate = queues[track_code].popleft()
+            day.assignments.append(PlannedAssignment(lesson=candidate, date_value=day.date_value))
+            assigned_by_track[track_code] += candidate.weight_units
 
-    accumulated_units = 0.0
-    day_count = len(available_days)
-    for candidate in candidates:
-        midpoint = accumulated_units + (candidate.weight_units / 2)
-        day_index = min(int((midpoint / total_units) * day_count), day_count - 1)
-        available_days[day_index].assignments.append(
-            PlannedAssignment(lesson=candidate, date_value=available_days[day_index].date_value)
-        )
-        accumulated_units += candidate.weight_units
+    return list(queues["FO"]) + list(queues["UN"])
+
+
+def find_overflow_days(planned_days: list[PlannedDay]) -> list[dict[str, Any]]:
+    return [
+        {
+            "date": day.date_value.isoformat(),
+            "assigned_units": day.assigned_units,
+            "capacity_units": day.capacity_units,
+            "overflow_units": day.overflow_units,
+        }
+        for day in planned_days
+        if day.overflow_units > 0
+    ]
 
 
 def persist_auto_cuts(conn: sqlite3.Connection) -> None:
@@ -1227,7 +1295,6 @@ def validate_distribution_diagnostics(
         expected_count = int(expected_track_counts.get(track_code, 0) or 0)
         track = diagnostics["tracks"].get(track_code, {})
         lesson_count = int(track.get("lesson_count") or 0)
-        distinct_dates = int(track.get("distinct_dates") or 0)
         if expected_count > 0 and lesson_count == 0:
             errors.append(f"{track_code}: nenhuma aula pendente distribuida.")
         if lesson_count != expected_count:
@@ -1238,8 +1305,6 @@ def validate_distribution_diagnostics(
             errors.append(f"{track_code}: existem aulas ativas antes da data de referencia.")
         if int(track.get("after_target_count") or 0) > 0:
             errors.append(f"{track_code}: existem aulas ativas depois da data-alvo.")
-        if lesson_count > 1 and distinct_dates <= 1:
-            errors.append(f"{track_code}: aulas concentradas em uma unica data.")
     return errors
 
 
@@ -1333,25 +1398,14 @@ def build_group_label(row: dict[str, Any]) -> str:
 
 
 def lesson_weight_units(row: dict[str, Any]) -> int:
+    """Return the lesson load in whole minutes; source durations are seconds."""
     try:
         duration_seconds = int(row.get("duration_seconds") or 0)
     except (TypeError, ValueError):
         duration_seconds = 0
     if duration_seconds > 0:
         return max(int(round(duration_seconds / 60)), 1)
-    return 1
-
-
-def build_unavailable_dates(entries: list[ScheduleUnavailability]) -> set[date]:
-    blocked: set[date] = set()
-    for entry in entries:
-        if entry.capacity_percent >= 100:
-            continue
-        current_day = entry.start_date
-        while current_day <= entry.end_date:
-            blocked.add(current_day)
-            current_day += timedelta(days=1)
-    return blocked
+    return DEFAULT_LESSON_MINUTES
 
 
 def scalar_int(conn: sqlite3.Connection, query: str) -> int:
