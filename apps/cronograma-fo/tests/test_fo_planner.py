@@ -46,16 +46,16 @@ class SharedFOPlannerUnitTest(unittest.TestCase):
         self.assertFalse(any(a.day.date_value.isoweekday() > 5 for a in excluded.assignments))
         self.assertTrue(all(a.day.date_value.isoformat() != "2026-10-01" for a in included.assignments))
 
-    def test_daily_capacity_is_enforced_and_excess_lessons_are_unallocated(self):
+    def test_one_hundred_lessons_are_all_distributed_across_ten_days(self):
         plan = build_fo_plan(
-            self.eligible([row(f"W{i}", lesson_number=i, duration_seconds=500*60) for i in range(12)]),
-            start_date=date(2026,7,10), end_date=date(2026,7,10), include_weekends=True,
+            self.eligible([row(f"W{i}", lesson_number=i) for i in range(100)]),
+            start_date=date(2026,7,1), end_date=date(2026,7,10), include_weekends=True,
         )
-        self.assertFalse(plan.is_feasible)
-        self.assertEqual(len(plan.assignments), 0)
-        self.assertEqual(len(plan.unallocated_lessons), 12)
-        self.assertGreater(plan.deficit_seconds, 0)
-        self.assertTrue(plan.daily_summary[0]["capacity_enforced"])
+        self.assertTrue(plan.is_feasible)
+        self.assertEqual(len(plan.assignments), 100)
+        self.assertEqual(len(plan.unallocated_lessons), 0)
+        self.assertEqual([row["lesson_count"] for row in plan.daily_summary], [10] * 10)
+        self.assertFalse(plan.daily_summary[0]["capacity_enforced"])
 
     def test_partial_and_total_unavailability(self):
         lessons = self.eligible([row(f"P{i}", lesson_number=i) for i in range(12)])
@@ -69,22 +69,24 @@ class SharedFOPlannerUnitTest(unittest.TestCase):
             capacity_percent_by_date={date(2026,7,10): 0})
         self.assertIn(date(2026,7,10), blocked.skipped_dates)
 
-    def test_duration_drives_feasibility_and_deficit(self):
+    def test_one_thousand_lessons_fit_in_five_days_regardless_of_duration(self):
         exact = build_fo_plan(self.eligible([row("EX", duration_seconds=240*60)]), start_date=date(2026,7,10), end_date=date(2026,7,10), include_weekends=True)
         below = build_fo_plan(self.eligible([row("BE", duration_seconds=200*60)]), start_date=date(2026,7,10), end_date=date(2026,7,10), include_weekends=True)
-        formerly_impossible = build_fo_plan(self.eligible([row(f"I{i}", lesson_number=i, duration_seconds=1000*60) for i in range(20)]), start_date=date(2026,7,10), end_date=date(2026,7,10), include_weekends=True)
+        formerly_impossible = build_fo_plan(self.eligible([row(f"I{i}", lesson_number=i, duration_seconds=1000*60) for i in range(1000)]), start_date=date(2026,7,10), end_date=date(2026,7,14), include_weekends=True)
         self.assertTrue(exact.is_feasible and below.is_feasible)
-        self.assertFalse(formerly_impossible.is_feasible)
-        self.assertEqual(formerly_impossible.deficit_seconds, (20_000 - 240) * 60)
-        self.assertEqual(len(formerly_impossible.assignments), 0)
-        self.assertEqual(len(formerly_impossible.unallocated_lessons), 20)
+        self.assertTrue(formerly_impossible.is_feasible)
+        self.assertEqual(formerly_impossible.deficit_seconds, 0)
+        self.assertEqual(len(formerly_impossible.assignments), 1000)
+        self.assertEqual(len(formerly_impossible.unallocated_lessons), 0)
+        self.assertEqual([row["lesson_count"] for row in formerly_impossible.daily_summary], [200] * 5)
 
-    def test_individual_oversize_is_rejected_and_missing_duration_uses_45_minutes(self):
+    def test_individual_oversize_is_allocated_and_missing_duration_uses_45_minutes(self):
         plan = build_fo_plan(self.eligible([row("HUGE", duration_seconds=241*60)]), start_date=date(2026,7,10), end_date=date(2026,7,17), include_weekends=True)
         missing = build_fo_plan(self.eligible([row("MISSING", duration_seconds=0)]), start_date=date(2026,7,10), end_date=date(2026,7,10), include_weekends=True)
-        self.assertFalse(plan.is_feasible)
+        self.assertTrue(plan.is_feasible)
         self.assertTrue(missing.is_feasible)
-        self.assertEqual(plan.unallocated_lessons[0].lesson.lesson_code, "HUGE")
+        self.assertEqual(plan.assignments[0].lesson.lesson_code, "HUGE")
+        self.assertEqual(plan.unallocated_lessons, ())
         self.assertEqual(missing.assignments[0].lesson.lesson_code, "MISSING")
         self.assertEqual(missing.assignments[0].lesson.minutes, 45)
         self.assertEqual(missing.estimated_duration_lesson_codes, ("MISSING",))
@@ -213,13 +215,11 @@ class SharedFOPlannerIntegrationTest(unittest.TestCase):
         self.assertEqual(web_codes, sync_codes)
         self.assertEqual(web.available_days[0].date_value.isoformat(), "2026-07-10")
 
-    def test_fo_and_un_share_the_same_daily_capacity(self):
+    def test_fo_and_un_are_all_distributed_without_a_shared_cap(self):
         web, _, _ = self.reports()
         self.assertTrue(web.feasible)
-        self.assertTrue(
-            all(day.assigned_units <= day.capacity_units for day in web.available_days)
-        )
-        self.assertEqual(web.overflow_days, [])
+        self.assertEqual(web.assignment_count, web.pending_lesson_count)
+        self.assertEqual(web.unallocated_lesson_count_by_track, {})
 
     def test_both_dry_runs_are_read_only_and_deterministic(self):
         before = self.dump(); first = self.plans(); second = self.plans()

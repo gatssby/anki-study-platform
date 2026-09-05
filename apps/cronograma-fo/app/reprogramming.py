@@ -123,6 +123,8 @@ class ReprogramReport:
     explicit_unavailability: list[ScheduleUnavailability]
     total_remaining_units: int
     remaining_units_by_track: dict[str, int]
+    remaining_lesson_count_by_track: dict[str, int]
+    distributed_lesson_count_by_track: dict[str, int]
     unallocated_lesson_count_by_track: dict[str, int]
     duration_diagnostics: dict[str, dict[str, int]]
     cut_summary: dict[str, int]
@@ -149,11 +151,26 @@ class ReprogramReport:
     @property
     def feasible(self) -> bool:
         return (
-            self.capacity_deficit_units == 0
-            and not self.overflow_days
-            and self.assignment_count == self.pending_lesson_count
+            self.assignment_count == self.pending_lesson_count
+            and not any(self.unallocated_lesson_count_by_track.values())
             and not self.validation_errors
         )
+
+    @property
+    def average_lessons_per_day(self) -> float:
+        return self.assignment_count / self.available_day_count if self.available_day_count else 0.0
+
+    @property
+    def average_minutes_per_day(self) -> float:
+        return self.total_remaining_units / self.available_day_count if self.available_day_count else 0.0
+
+    @property
+    def max_daily_load_units(self) -> int:
+        return max((day.assigned_units for day in self.available_days if day.is_available), default=0)
+
+    @property
+    def min_daily_load_units(self) -> int:
+        return min((day.assigned_units for day in self.available_days if day.is_available), default=0)
 
 
 def current_local_date() -> date:
@@ -434,6 +451,11 @@ def build_reprogram_report(
         target_finish_date=effective_target,
         unavailability=unavailability,
     )
+    if not any(day.is_available for day in planned_days):
+        raise ValueError(
+            "Nenhum dia disponível entre a data de referência e a data-alvo. "
+            "Revise fins de semana e indisponibilidades reais."
+        )
     capacity_by_date: dict[date, int] = {}
     for entry in unavailability:
         current = entry.start_date
@@ -451,7 +473,7 @@ def build_reprogram_report(
         max_daily_minutes_sunday=normalized.max_daily_minutes_sunday,
     )
     candidates = fo_candidates + un_candidates
-    unallocated_candidates = distribute_tracks_with_capacity(
+    unallocated_candidates = distribute_tracks_without_limits(
         fo_candidates=fo_candidates,
         un_candidates=un_candidates,
         planned_days=planned_days,
@@ -461,6 +483,10 @@ def build_reprogram_report(
     unavailable_day_count = len(planned_days) - available_day_count
 
     remaining_units_by_track = summarize_remaining_units_by_track(candidates)
+    remaining_lesson_count_by_track = summarize_candidate_counts_by_track(candidates)
+    distributed_lesson_count_by_track = summarize_candidate_counts_by_track(
+        [assignment.lesson for day in planned_days for assignment in day.assignments]
+    )
     unallocated_lesson_count_by_track = summarize_candidate_counts_by_track(unallocated_candidates)
     duration_diagnostics = summarize_duration_diagnostics(candidates)
     generated_days = [day for day in planned_days if day.assignments]
@@ -478,7 +504,7 @@ def build_reprogram_report(
         "scope": "standalone_fo_only_without_un_capacity_competition",
         "standalone_is_feasible": fo_plan.is_feasible,
         "capacity_mode": fo_plan.capacity_mode,
-        "configured_daily_minutes_ignored": False,
+        "configured_daily_minutes_ignored": True,
         "total_load_seconds": fo_plan.total_load_seconds,
         "estimated_duration_lesson_count": len(fo_plan.estimated_duration_lesson_codes),
         "estimated_duration_lesson_codes": list(fo_plan.estimated_duration_lesson_codes),
@@ -510,7 +536,8 @@ def build_reprogram_report(
             f"total={len(unallocated_candidates)}."
         )
     total_capacity_units = sum(day.capacity_units for day in planned_days)
-    capacity_deficit_units = max(total_remaining_units - total_capacity_units, 0)
+    # Kept at zero for legacy consumers: configured minutes are not capacity.
+    capacity_deficit_units = 0
     overflow_days = find_overflow_days(planned_days)
     fo_plan_summary["shared_plan_unallocated_lesson_count"] = len(unallocated_candidates)
     fo_plan_summary["shared_plan_unallocated_by_track"] = unallocated_lesson_count_by_track
@@ -536,6 +563,8 @@ def build_reprogram_report(
         explicit_unavailability=unavailability,
         total_remaining_units=total_remaining_units,
         remaining_units_by_track=remaining_units_by_track,
+        remaining_lesson_count_by_track=remaining_lesson_count_by_track,
+        distributed_lesson_count_by_track=distributed_lesson_count_by_track,
         unallocated_lesson_count_by_track=unallocated_lesson_count_by_track,
         duration_diagnostics=duration_diagnostics,
         cut_summary=cut_summary,
@@ -569,8 +598,7 @@ def apply_reprogramming(
     report = build_reprogram_report(conn=conn, settings=settings, as_of_date=as_of_date)
     if not report.feasible:
         raise ValueError(
-            "Plano inviável; aplicação recusada porque a carga FO + UN não cabe nos tetos "
-            "diários até a data final."
+            "Aplicação recusada porque a distribuição contém erros estruturais."
         )
     backup_dir = Path(db_path).expanduser().resolve().parent / "backups"
     backup_path = create_timestamped_backup(
@@ -730,7 +758,7 @@ def build_planned_days(
         days.append(
             PlannedDay(
                 date_value=current_day,
-                is_available=capacity_minutes > 0,
+                is_available=capacity_percent > 0 and (settings.include_weekends or not is_weekend),
                 capacity_units=capacity_minutes,
                 effective_capacity_percent=capacity_percent,
             )
@@ -759,47 +787,64 @@ def effective_capacity_percent(
     return min(matching, default=100)
 
 
-def distribute_tracks_with_capacity(
+def distribute_tracks_without_limits(
     fo_candidates: list[LessonCandidate],
     un_candidates: list[LessonCandidate],
     planned_days: list[PlannedDay],
 ) -> list[LessonCandidate]:
-    """Share daily capacity fairly without changing either track's internal order."""
+    """Distribute every lesson while preserving each track's internal order."""
     queues = {
         "FO": deque(fo_candidates),
         "UN": deque(un_candidates),
     }
-    total_by_track = {
-        track_code: sum(candidate.weight_units for candidate in queue)
-        for track_code, queue in queues.items()
-    }
-    assigned_by_track = {"FO": 0, "UN": 0}
     available_days = [day for day in planned_days if day.is_available]
     if not available_days:
         return list(fo_candidates) + list(un_candidates)
 
-    for day in available_days:
-        while any(queues.values()):
-            remaining_capacity = day.capacity_units - day.assigned_units
-            fitting_tracks = [
-                track_code
-                for track_code in ("FO", "UN")
-                if queues[track_code] and queues[track_code][0].weight_units <= remaining_capacity
-            ]
-            if not fitting_tracks:
-                break
-            track_code = min(
-                fitting_tracks,
-                key=lambda code: (
-                    assigned_by_track[code] / total_by_track[code] if total_by_track[code] else 1.0,
-                    TRACK_ORDER[code],
-                ),
-            )
-            candidate = queues[track_code].popleft()
-            day.assignments.append(PlannedAssignment(lesson=candidate, date_value=day.date_value))
-            assigned_by_track[track_code] += candidate.weight_units
+    total_count_by_track = {code: len(queue) for code, queue in queues.items()}
+    assigned_count_by_track = {"FO": 0, "UN": 0}
+    merged: list[LessonCandidate] = []
+    while any(queues.values()):
+        available_tracks = [code for code in ("FO", "UN") if queues[code]]
+        track_code = min(
+            available_tracks,
+            key=lambda code: (
+                assigned_count_by_track[code] / total_count_by_track[code],
+                TRACK_ORDER[code],
+            ),
+        )
+        merged.append(queues[track_code].popleft())
+        assigned_count_by_track[track_code] += 1
 
-    return list(queues["FO"]) + list(queues["UN"])
+    quotas = weighted_day_quotas(len(merged), available_days)
+    candidate_iter = iter(merged)
+    for day, quota in zip(available_days, quotas):
+        for _ in range(quota):
+            candidate = next(candidate_iter)
+            day.assignments.append(PlannedAssignment(candidate, day.date_value))
+    return []
+
+
+def weighted_day_quotas(total_lessons: int, days: list[PlannedDay]) -> list[int]:
+    """Allocate lesson counts proportionally; percentages are weights, not caps."""
+    if total_lessons <= 0 or not days:
+        return [0] * len(days)
+    if total_lessons < len(days):
+        return [1 if index < total_lessons else 0 for index in range(len(days))]
+    quotas = [1] * len(days)
+    remainder = total_lessons - len(days)
+    weight_total = sum(day.effective_capacity_percent for day in days)
+    exact = [remainder * day.effective_capacity_percent / weight_total for day in days]
+    floors = [int(value) for value in exact]
+    quotas = [base + extra for base, extra in zip(quotas, floors)]
+    leftovers = remainder - sum(floors)
+    order = sorted(
+        range(len(days)),
+        key=lambda index: (-(exact[index] - floors[index]), days[index].date_value),
+    )
+    for index in order[:leftovers]:
+        quotas[index] += 1
+    return quotas
 
 
 def find_overflow_days(planned_days: list[PlannedDay]) -> list[dict[str, Any]]:
@@ -1125,7 +1170,7 @@ def build_lesson_order_diagnostics(
                 reason = None
             elif code in unallocated_codes or code in canonical_code_set:
                 status = "unallocated"
-                reason = "insufficient_shared_capacity"
+                reason = "no_available_days"
             else:
                 status = "excluded"
                 reason = "not_an_eligible_fo_lesson"

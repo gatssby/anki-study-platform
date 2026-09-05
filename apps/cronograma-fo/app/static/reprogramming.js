@@ -265,11 +265,15 @@
       metricRow("Carga restante total", formatUnits(state.lastReport.remaining_total_units)),
       metricRow("Carga restante FO", formatUnits(state.lastReport.remaining_fo_units)),
       metricRow("Carga restante UN", formatUnits(state.lastReport.remaining_un_units)),
-      metricRow("Capacidade total até o fim", formatUnits(state.lastReport.total_capacity_units)),
-      metricRow("Déficit de capacidade", formatUnits(state.lastReport.capacity_deficit_units)),
-      metricRow("Status do plano", state.lastReport.feasible ? "Viável" : "Inviável"),
-      metricRow("Dias acima do teto", (state.lastReport.overflow_days || []).length),
-      metricRow("Média diária estimada (informativa)", formatUnits(Math.round(state.lastReport.daily_goal_units))),
+      metricRow("Aulas restantes FO", (state.lastReport.remaining_lessons_by_track || {}).FO || 0),
+      metricRow("Aulas restantes UN", (state.lastReport.remaining_lessons_by_track || {}).UN || 0),
+      metricRow("Aulas distribuídas FO", (state.lastReport.distributed_lessons_by_track || {}).FO || 0),
+      metricRow("Aulas distribuídas UN", (state.lastReport.distributed_lessons_by_track || {}).UN || 0),
+      metricRow("Média de aulas por dia", state.lastReport.average_lessons_per_day),
+      metricRow("Média de minutos por dia", formatUnits(Math.round(state.lastReport.average_minutes_per_day))),
+      metricRow("Maior carga diária", formatUnits(state.lastReport.max_daily_load_units)),
+      metricRow("Menor carga diária", formatUnits(state.lastReport.min_daily_load_units)),
+      metricRow("Dias acima do teto (informativo)", (state.lastReport.overflow_days || []).length),
       metricRow("Aulas pendentes", state.lastReport.pending_lessons),
       metricRow("Revisão/livre cortadas", state.lastReport.cut_review_free),
       metricRow("Inglês preservado", state.lastReport.cut_english_preserved),
@@ -321,7 +325,7 @@
           '<article class="reprogramming-list__item">' +
           "<strong>" + toBrDate(row.date) + "</strong>" +
           "<span>" + row.lesson_count + " aula(s)</span>" +
-          "<span>" + formatUnits(row.units) + " / " + formatUnits(row.capacity_units) + "</span>" +
+          "<span>" + formatUnits(row.units) + "</span>" +
           "</article>"
         );
       }).join("") +

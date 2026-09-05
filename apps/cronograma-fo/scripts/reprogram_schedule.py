@@ -76,11 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     set_capacity_parser = subparsers.add_parser(
         "set-capacity",
-        help="Define tetos diarios de carga.",
+        help="Define referencias diarias informativas, sem limitar o planner.",
     )
-    set_capacity_parser.add_argument("--weekday", type=int, required=True, help="Minutos maximos de segunda a sexta.")
-    set_capacity_parser.add_argument("--saturday", type=int, required=True, help="Minutos maximos de sabado.")
-    set_capacity_parser.add_argument("--sunday", type=int, required=True, help="Minutos maximos de domingo.")
+    set_capacity_parser.add_argument("--weekday", type=int, required=True, help="Referencia informativa de segunda a sexta.")
+    set_capacity_parser.add_argument("--saturday", type=int, required=True, help="Referencia informativa de sabado.")
+    set_capacity_parser.add_argument("--sunday", type=int, required=True, help="Referencia informativa de domingo.")
     set_capacity_parser.set_defaults(handler=handle_set_capacity)
 
     set_flags_parser = subparsers.add_parser(
@@ -520,8 +520,8 @@ def build_effective_settings(args: argparse.Namespace, persisted: ScheduleSettin
 
 
 def print_report(report: Any, mode: str) -> None:
-    available_days = [day for day in report.available_days if day.capacity_units > 0]
-    unavailable_days = [day for day in report.available_days if day.capacity_units == 0]
+    available_days = [day for day in report.available_days if day.is_available]
+    unavailable_days = [day for day in report.available_days if not day.is_available]
     print(f"modo: {mode}")
     print(f"prova_configurada: {format_date(report.exam_date)}")
     print(f"data_alvo_termino: {report.target_finish_date.isoformat()}")
@@ -533,7 +533,10 @@ def print_report(report: Any, mode: str) -> None:
     print(f"carga_total_restante_UN: {report.remaining_units_by_track.get('UN', 0)}")
     print(f"carga_total_restante_FO: {report.remaining_units_by_track.get('FO', 0)}")
     print(f"carga_total_restante: {report.total_remaining_units}")
-    print(f"carga_total_disponivel: {report.total_capacity_units}")
+    print(f"aulas_restantes_FO: {report.remaining_lesson_count_by_track.get('FO', 0)}")
+    print(f"aulas_restantes_UN: {report.remaining_lesson_count_by_track.get('UN', 0)}")
+    print(f"aulas_distribuidas_FO: {report.distributed_lesson_count_by_track.get('FO', 0)}")
+    print(f"aulas_distribuidas_UN: {report.distributed_lesson_count_by_track.get('UN', 0)}")
     print(f"aulas_nao_alocadas_FO: {report.unallocated_lesson_count_by_track.get('FO', 0)}")
     print(f"aulas_nao_alocadas_UN: {report.unallocated_lesson_count_by_track.get('UN', 0)}")
     print(
@@ -550,27 +553,27 @@ def print_report(report: Any, mode: str) -> None:
             f"minutos_fallback={duration.get('fallback_minutes', 0)} "
             f"fallback_por_aula={duration.get('fallback_minutes_per_lesson', 0)}"
         )
-    print(f"media_diaria_necessaria: {report.required_average_units:.2f}")
+    print(f"media_aulas_por_dia: {report.average_lessons_per_day:.2f}")
+    print(f"carga_total_minutos: {report.total_remaining_units}")
+    print(f"media_minutos_por_dia: {report.average_minutes_per_day:.2f}")
+    print(f"maior_carga_diaria: {report.max_daily_load_units}")
+    print(f"menor_carga_diaria: {report.min_daily_load_units}")
     print(
-        "tetos_configurados: "
+        "tetos_configurados_informativos_sem_efeito_no_planner: "
         f"weekday={report.settings.max_daily_minutes_weekday} "
         f"saturday={report.settings.max_daily_minutes_saturday} "
         f"sunday={report.settings.max_daily_minutes_sunday}"
     )
-    print(f"deficit: {report.capacity_deficit_units}")
     print(f"aulas_cortadas_revisao_livre: {report.cut_summary['review_free']}")
     print(f"aulas_ingles_preservadas_cortadas: {report.cut_summary['english']}")
     print(f"aulas_cortadas_manual: {report.cut_summary['manual']}")
     print(f"distribuicoes_geradas: {report.assignment_count}")
-    print(f"status: {'viavel' if report.feasible else 'inviavel'}")
+    print(f"status_distribuicao: {'completa' if report.feasible else 'erro_estrutural'}")
     print_distribution_summary(report.distribution_diagnostics)
     if report.validation_errors:
         print("validacao_erros:")
         for error in report.validation_errors:
             print(f"- {error}")
-
-    if not report.feasible:
-        print("sugestao: aumentar carga diaria, mudar target_finish_date ou cortar mais aulas.")
 
     print("primeiras_14_datas:")
     for row in report.first_days:
@@ -770,7 +773,7 @@ def print_auto_adapt_result(db_path: str) -> None:
     if applied:
         print("auto_adapt: apply executado automaticamente.")
     elif reason == "infeasible":
-        print("auto_adapt: configurado, mas nao aplicado porque o dry-run atual esta inviavel.")
+        print("auto_adapt: configurado, mas nao aplicado por erro estrutural no dry-run.")
 
 
 def main() -> int:

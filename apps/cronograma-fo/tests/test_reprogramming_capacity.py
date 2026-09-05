@@ -18,7 +18,7 @@ from app.reprogramming import (
     apply_reprogramming,
     build_planned_days,
     build_reprogram_report,
-    distribute_tracks_with_capacity,
+    distribute_tracks_without_limits,
     find_overflow_days,
     lesson_weight_units,
 )
@@ -99,17 +99,19 @@ class DailyCapacityUnitTest(unittest.TestCase):
         )[0]
         self.assertEqual(day.capacity_units, 240)
 
-    def test_tracks_use_capacity_that_the_other_track_head_cannot_use(self) -> None:
+    def test_tracks_are_fully_distributed_without_capacity_competition(self) -> None:
         saturday = PlannedDay(date(2026, 9, 5), True, 180, 100)
         monday = PlannedDay(date(2026, 9, 7), True, 240, 100)
-        unallocated = distribute_tracks_with_capacity(
+        unallocated = distribute_tracks_without_limits(
             fo_candidates=[candidate("FO-1", 200, track="FO")],
             un_candidates=[candidate("UN-1", 100, track="UN")],
             planned_days=[saturday, monday],
         )
         self.assertEqual(unallocated, [])
-        self.assertEqual([item.lesson.lesson_code for item in saturday.assignments], ["UN-1"])
-        self.assertEqual([item.lesson.lesson_code for item in monday.assignments], ["FO-1"])
+        self.assertEqual(
+            [item.lesson.lesson_code for day in (saturday, monday) for item in day.assignments],
+            ["FO-1", "UN-1"],
+        )
 
 
 class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
@@ -168,33 +170,70 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
         payload = serialize_report(report)
         self.assertEqual(payload["load_capacity_unit"], "minutes")
         self.assertEqual(payload["total_capacity_units"], 240)
-        self.assertEqual(payload["capacity_deficit_units"], 0)
+        self.assertNotIn("capacity_deficit_units", payload)
         self.assertEqual(payload["overflow_days"], [])
 
-    def test_infeasible_plan_reports_deficit_and_apply_aborts_without_changes(self) -> None:
+    def test_one_minute_daily_reference_does_not_change_distribution(self) -> None:
+        for index in range(1, 11):
+            self.insert_lesson(f"FO-{index}", "FO", 90, index, subject="MAT")
+        self.conn.commit()
+        one_minute = ScheduleSettings(
+            target_finish_date=date(2026, 9, 8),
+            include_weekends=True,
+            max_daily_minutes_weekday=1,
+            max_daily_minutes_saturday=1,
+            max_daily_minutes_sunday=1,
+        )
+        report = build_reprogram_report(
+            self.conn, one_minute, as_of_date=date(2026, 9, 7)
+        )
+        self.assertTrue(report.feasible)
+        self.assertEqual(report.assignment_count, 10)
+        self.assertEqual(report.unallocated_lesson_count_by_track, {})
+        self.assertTrue(report.overflow_days)
+
+    def test_different_weekday_weekend_references_do_not_change_counts(self) -> None:
+        for index in range(1, 16):
+            self.insert_lesson(f"FO-{index}", "FO", 120, index, subject="MAT")
+        self.conn.commit()
+        varied = ScheduleSettings(
+            target_finish_date=date(2026, 9, 6),
+            include_weekends=True,
+            max_daily_minutes_weekday=1,
+            max_daily_minutes_saturday=2,
+            max_daily_minutes_sunday=3,
+        )
+        report = build_reprogram_report(
+            self.conn, varied, as_of_date=date(2026, 9, 4)
+        )
+        self.assertEqual(report.assignment_count, 15)
+        self.assertEqual(report.distributed_lesson_count_by_track, {"FO": 15})
+        self.assertEqual(report.unallocated_lesson_count_by_track, {})
+
+    def test_high_load_is_complete_and_apply_does_not_abort_for_minutes(self) -> None:
         self.insert_lesson("FO-1", "FO", 200, 1, subject="MAT")
         self.insert_lesson("UN-1", "UN", 100, 1)
         self.conn.commit()
-        before = "\n".join(self.conn.iterdump())
         report = build_reprogram_report(
             self.conn, settings(date(2026, 9, 7)), as_of_date=date(2026, 9, 7)
         )
 
-        self.assertFalse(report.feasible)
+        self.assertTrue(report.feasible)
         self.assertEqual(report.total_remaining_units, 300)
         self.assertEqual(report.total_capacity_units, 240)
-        self.assertEqual(report.capacity_deficit_units, 60)
-        with self.assertRaisesRegex(ValueError, "Plano inviável"):
-            apply_reprogramming(
-                self.conn,
-                settings(date(2026, 9, 7)),
-                as_of_date=date(2026, 9, 7),
-                db_path=self.db_path,
-            )
-        self.assertEqual("\n".join(self.conn.iterdump()), before)
-        self.assertFalse((self.db_path.parent / "backups").exists())
+        self.assertEqual(report.capacity_deficit_units, 0)
+        self.assertEqual(report.assignment_count, 2)
+        applied = apply_reprogramming(
+            self.conn,
+            settings(date(2026, 9, 7)),
+            as_of_date=date(2026, 9, 7),
+            db_path=self.db_path,
+        )
+        self.conn.commit()
+        self.assertTrue(applied.feasible)
+        self.assertIsNotNone(applied.backup_path)
 
-    def test_zero_total_capacity_can_never_be_reported_as_feasible(self) -> None:
+    def test_no_available_day_is_an_explicit_error(self) -> None:
         self.insert_lesson("FO-1", "FO", 60, 1, subject="MAT")
         self.conn.execute(
             """
@@ -202,14 +241,10 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
             VALUES ('2026-09-07', '2026-09-07', 0, 'fixture')
             """
         )
-        report = self.report_for(date(2026, 9, 7), date(2026, 9, 7))
+        with self.assertRaisesRegex(ValueError, "Nenhum dia disponível"):
+            self.report_for(date(2026, 9, 7), date(2026, 9, 7))
 
-        self.assertEqual(report.total_capacity_units, 0)
-        self.assertEqual(report.capacity_deficit_units, 60)
-        self.assertFalse(report.feasible)
-        self.assertEqual(report.assignment_count, 0)
-
-    def test_shared_and_standalone_fo_unallocated_counts_are_explicit(self) -> None:
+    def test_shared_and_standalone_plans_allocate_every_fo_and_un_lesson(self) -> None:
         for index in range(1, 4):
             self.insert_lesson(f"FO-{index}", "FO", 80, index, subject="MAT")
         for index in range(1, 3):
@@ -218,16 +253,15 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
 
         self.assertEqual(report.fo_plan_summary["scope"], "standalone_fo_only_without_un_capacity_competition")
         self.assertEqual(report.fo_plan_summary["standalone_unallocated_lesson_count"], 0)
-        self.assertEqual(report.unallocated_lesson_count_by_track, {"FO": 2, "UN": 1})
-        self.assertTrue(
-            any("FO=2 e UN=1" in error for error in report.validation_errors)
-        )
+        self.assertEqual(report.unallocated_lesson_count_by_track, {})
+        self.assertEqual(report.distributed_lesson_count_by_track, {"FO": 3, "UN": 2})
+        self.assertEqual(report.validation_errors, [])
 
         output = io.StringIO()
         with redirect_stdout(output):
             print_report(report, mode="dry-run")
         rendered = output.getvalue()
-        self.assertIn("aulas_nao_alocadas_FO: 2", rendered)
+        self.assertIn("aulas_nao_alocadas_FO: 0", rendered)
         self.assertIn("diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas: 0", rendered)
 
     def test_duration_diagnostics_separate_real_and_fallback_minutes_by_track(self) -> None:
@@ -294,7 +328,7 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
             sorted(entry["projected_date"] for entry in projected_entries),
         )
 
-    def test_current_shape_fixture_reports_real_capacity_and_infeasibility(self) -> None:
+    def test_current_shape_fixture_distributes_all_load_despite_informational_limits(self) -> None:
         for index in range(1, 112):
             self.insert_lesson(f"FO-{index:03d}", "FO", 180, index, subject="MAT")
         self.insert_lesson("FO-112", "FO", 120, 112, subject="MAT")
@@ -307,22 +341,21 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
         self.assertEqual(report.remaining_units_by_track, {"FO": 20_100, "UN": 14_774})
         self.assertEqual(report.total_remaining_units, 34_874)
         self.assertEqual(report.total_capacity_units, 12_240)
-        self.assertEqual(report.capacity_deficit_units, 22_634)
-        self.assertFalse(report.feasible)
-        self.assertEqual(report.overflow_days, [])
-        self.assertTrue(
-            all(day.assigned_units <= day.capacity_units for day in report.available_days)
-        )
+        self.assertEqual(report.capacity_deficit_units, 0)
+        self.assertTrue(report.feasible)
+        self.assertEqual(report.assignment_count, 195)
+        self.assertEqual(report.unallocated_lesson_count_by_track, {})
+        self.assertGreater(len(report.overflow_days), 0)
 
         output = io.StringIO()
         with redirect_stdout(output):
             print_report(report, mode="dry-run")
         rendered = output.getvalue()
         self.assertIn("unidade_carga_capacidade: minutos", rendered)
-        self.assertIn("carga_total_disponivel: 12240", rendered)
-        self.assertIn("deficit: 22634", rendered)
-        self.assertIn("status: inviavel", rendered)
-        self.assertIn("dias_acima_do_teto: 0", rendered)
+        self.assertIn("aulas_distribuidas_FO: 112", rendered)
+        self.assertIn("aulas_distribuidas_UN: 83", rendered)
+        self.assertIn("status_distribuicao: completa", rendered)
+        self.assertIn("dias_acima_do_teto:", rendered)
 
 
 if __name__ == "__main__":

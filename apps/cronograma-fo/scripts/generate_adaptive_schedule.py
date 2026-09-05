@@ -506,8 +506,7 @@ def print_report(report: dict[str, Any]) -> None:
     print(f"carga_total_segundos: {report['total_load_seconds']}")
     print(f"aulas_com_duracao_estimada_45min: {report['estimated_duration_lesson_count']}")
     print(f"modo_capacidade: {report['capacity_mode']}")
-    print(f"capacidade_total_segundos: {report['total_capacity_seconds']}")
-    print(f"deficit_segundos: {report['deficit_seconds']}")
+    print(f"capacidade_configurada_informativa_segundos: {report['total_capacity_seconds']}")
     print(f"total_dias_disponiveis: {report['available_days']}")
     print(f"total_dias_indisponiveis_pulados: {report['skipped_days']}")
     print(f"aulas_por_dia_necessarias: {report['average_lessons_per_day']:.2f}")
@@ -611,6 +610,11 @@ def build_report(conn: sqlite3.Connection, args: argparse.Namespace, db_path: Pa
         max_daily_minutes_saturday=override or settings.max_daily_minutes_saturday,
         max_daily_minutes_sunday=override or settings.max_daily_minutes_sunday,
     )
+    if not plan.days:
+        raise ValueError(
+            "Nenhum dia disponível entre a data de referência e a data-alvo. "
+            "Revise fins de semana e indisponibilidades reais."
+        )
     days, skipped, assignments = list(plan.days), list(plan.skipped_dates), list(plan.assignments)
     summary = summarize(assignments=assignments, days=days, lessons=lessons, as_of_date=as_of_date)
     seen_preserved = scalar(conn, "SELECT COUNT(*) FROM lessons WHERE track_code = 'FO' AND is_seen = 1")
@@ -622,11 +626,6 @@ def build_report(conn: sqlite3.Connection, args: argparse.Namespace, db_path: Pa
     seen_normalization_changes = seen_lesson_normalization_changes(conn)
 
     warnings: list[str] = []
-    if not plan.is_feasible:
-        warnings.append(
-            f"Plano FO inviavel: {len(plan.unallocated_lessons)} aulas e "
-            f"{plan.unallocated_load_seconds} segundos nao foram alocados."
-        )
     if assignments and assignments[-1].day.date_value > target:
         warnings.append("Plano ultrapassou target_end_date.")
     if summary["average_lessons_per_day"] > 12:
@@ -660,7 +659,7 @@ def build_report(conn: sqlite3.Connection, args: argparse.Namespace, db_path: Pa
         "allocated_lessons": len(plan.assignments),
         "is_feasible": plan.is_feasible,
         "capacity_mode": plan.capacity_mode,
-        "configured_daily_minutes_ignored": False,
+        "configured_daily_minutes_ignored": True,
         "total_load_seconds": plan.total_load_seconds,
         "estimated_duration_lesson_count": len(plan.estimated_duration_lesson_codes),
         "estimated_duration_lesson_codes": list(plan.estimated_duration_lesson_codes),
@@ -798,7 +797,7 @@ def main() -> int:
         if args.apply:
             if not report["is_feasible"]:
                 raise ValueError(
-                    "Plano FO inviável; --apply recusado porque há aulas não alocadas até a data final."
+                    "--apply recusado porque a distribuição contém erros estruturais."
                 )
             backup_path = create_backup(db_path)
             normalize_seen_lesson_dates(conn)

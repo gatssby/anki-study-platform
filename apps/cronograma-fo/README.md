@@ -161,7 +161,7 @@ Ou usar termino relativo:
 python3 scripts/reprogram_schedule.py set-finish-offset-days 14
 ```
 
-### Definir flags e teto diario
+### Definir flags e referências diárias informativas
 
 ```bash
 python3 scripts/reprogram_schedule.py set-flags \
@@ -244,7 +244,7 @@ python3 scripts/reprogram_schedule.py \
   --diagnose-lesson-prefix POR2
 ```
 
-O diagnóstico imprime código, status, data atual e data projetada em ordem pedagógica. A contagem `aulas_nao_alocadas_FO` pertence ao plano compartilhado FO + UN; `diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas` é apenas a simulação FO isolada, sem consumo de capacidade pela UN.
+O diagnóstico imprime código, status, data atual e data projetada em ordem pedagógica. As contagens `aulas_nao_alocadas_FO` e `aulas_nao_alocadas_UN` devem permanecer em zero quando houver ao menos um dia disponível; `diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas` mantém a visão FO isolada para compatibilidade.
 
 ### Apply
 
@@ -263,7 +263,7 @@ python3 scripts/reprogram_schedule.py \
   --apply
 ```
 
-O `apply` só prossegue quando toda a carga FO + UN cabe na capacidade diária configurada até a data-alvo. Em cenário inviável ele aborta antes do backup e de qualquer alteração. Quando viável, cria backup automático antes de alterar datas recomendadas e limpa os snapshots diários para a agenda ser reconstruída com o novo plano.
+O `apply` distribui todas as aulas elegíveis de FO + UN até a data-alvo. Os minutos configurados são apenas referências informativas: carga alta, déficit teórico e dias acima desses valores não bloqueiam aulas nem a aplicação. Dias com indisponibilidade real (`capacity_percent=0`) continuam excluídos; percentuais entre 1 e 100 funcionam somente como peso relativo. A aplicação cria backup automático antes de alterar datas recomendadas e limpa os snapshots diários para a agenda ser reconstruída com o novo plano.
 
 ### Recalculo manual com configuracao persistida
 
