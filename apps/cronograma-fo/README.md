@@ -330,7 +330,9 @@ Os wrappers locais ficam no projeto e podem ser apontados para o seu `PATH` via 
 Se precisar reinstalar manualmente:
 
 ```bash
-ln -sf "/Users/gatsby/Workspace/Anki Study Platform/apps/cronograma-fo/cronograma_deploy" ~/bin/cronograma_deploy
+cd /caminho/para/anki-study-platform/apps/cronograma-fo
+mkdir -p "$HOME/bin"
+ln -sf "$(pwd -P)/cronograma_deploy" "$HOME/bin/cronograma_deploy"
 ```
 
 Não há suporte funcional a `--reset-db`. O wrapper legado `cronograma_deploy_reset_db` não faz parte do fluxo suportado e não deve ser usado.
@@ -363,7 +365,7 @@ Para baixar uma cópia atual de produção:
 cronograma_deploy --pull-db
 ```
 
-Esse fluxo cria snapshots consistentes do banco local e remoto, valida a cópia baixada e só então atualiza `data/cronograma.db` local.
+Esse fluxo cria um snapshot consistente do banco remoto, valida a cópia baixada e só então atualiza `data/cronograma.db` local. Se já houver um banco local, cria também um snapshot dele antes da substituição; a ausência do arquivo local é aceita.
 
 O envio de banco é excepcional:
 

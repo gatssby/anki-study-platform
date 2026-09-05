@@ -44,7 +44,7 @@ Opções:
   --force-db-overwrite
                   Emergência: permite sobrescrever mesmo se o banco local parecer
                   mais pobre. Exige confirmação FORCE_DEPLOY_DB_LOSS.
-  --pull-db       Baixa o banco remoto para data/cronograma.db, salvando backup local antes.
+  --pull-db       Baixa o banco remoto para data/cronograma.db, salvando backup local se existir.
   --no-restart    Faz deploy sem rebuild/recreate do app remoto.
   --restart-only  Apenas rebuilda/recria o app remoto e roda validação básica.
   -h, --help      Mostra esta ajuda.
@@ -167,17 +167,22 @@ check_local_prerequisites() {
   require_command python3
 
   [ -d "$PROJECT_DIR/app" ] || die "Diretório app/ não encontrado em $PROJECT_DIR"
-  [ -f "$LOCAL_DB" ] || die "Banco local não encontrado: $LOCAL_DB"
   [ -f "$REMOTE_DEPLOY_SCRIPT" ] || die "Script remoto local não encontrado: $REMOTE_DEPLOY_SCRIPT"
   [ -f "$SQLITE_BACKUP_TOOL" ] || die "Utilitário de snapshot não encontrado: $SQLITE_BACKUP_TOOL"
   [ -f "$DB_COMPARE_TOOL" ] || die "Comparador de estado não encontrado: $DB_COMPARE_TOOL"
 
-  if [ "$(cd "$PROJECT_DIR" && pwd)" != "/Users/gatsby/Workspace/Anki Study Platform/apps/cronograma-fo" ]; then
-    warn "Raiz detectada diferente do caminho esperado: $PROJECT_DIR"
+  if [ "$WITH_DB" -eq 1 ]; then
+    [ -f "$LOCAL_DB" ] || die "--with-db exige banco local: $LOCAL_DB"
+    python3 "$SQLITE_BACKUP_TOOL" validate --db "$LOCAL_DB" >/dev/null \
+      || die "--with-db exige banco local SQLite válido: $LOCAL_DB"
   fi
 
   printf 'Projeto local: %s\n' "$PROJECT_DIR"
-  printf 'Banco local:   %s (não enviado por padrão)\n' "$LOCAL_DB"
+  if [ -f "$LOCAL_DB" ]; then
+    printf 'Banco local:   %s (não enviado por padrão)\n' "$LOCAL_DB"
+  else
+    printf 'Banco local:   ausente (OK para deploy sem DB)\n'
+  fi
 }
 
 compile_python_files() {
@@ -486,9 +491,14 @@ pull_remote_db() {
   tmp_local="$LOCAL_DB.pulled.$$"
 
   log "Baixando banco remoto para local"
-  mkdir -p "$backup_dir"
-  python3 "$SQLITE_BACKUP_TOOL" backup --source "$LOCAL_DB" --output "$backup_path"
-  printf 'Backup local criado: %s\n' "$backup_path"
+  mkdir -p "$(dirname "$LOCAL_DB")"
+  if [ -f "$LOCAL_DB" ]; then
+    mkdir -p "$backup_dir"
+    python3 "$SQLITE_BACKUP_TOOL" backup --source "$LOCAL_DB" --output "$backup_path"
+    printf 'Backup local criado: %s\n' "$backup_path"
+  else
+    printf 'Banco local anterior: ausente (nenhum backup local necessário)\n'
+  fi
 
   backup_remote_db "before-pull"
   rsync -az --itemize-changes "$REMOTE_HOST:$REMOTE_DB_SNAPSHOT" "$tmp_local"
