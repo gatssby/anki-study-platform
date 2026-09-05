@@ -230,9 +230,10 @@ Destino remoto:
   app:  $REMOTE_DIR
   db:   $REMOTE_DB
 
-Política de banco:
-  data/cronograma.db não será enviado neste modo.
-  Qualquer *.db, *.sqlite e *.sqlite3 é excluído do rsync padrão.
+Política do rsync de código:
+  data/ inteiro é persistente e não será enviado nem terá metadados alterados por este rsync.
+  A regra de proteção também impede remoção do data/ remoto por --delete.
+  Qualquer *.db, *.sqlite e *.sqlite3 fora de data/ também é excluído.
 EOF
 }
 
@@ -254,8 +255,8 @@ rsync_project() {
     --exclude "output/"
     --exclude "work/"
     --exclude "imports/"
-    --exclude "data/backups/"
-    --exclude "data/cronograma.db"
+    --filter "protect /data/***"
+    --exclude "/data/"
     --exclude "*.pdf"
     --exclude "*.xlsx"
     --exclude "*.csv"

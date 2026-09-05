@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shlex
 import sqlite3
 import subprocess
@@ -49,6 +50,9 @@ class CronogramaDeployModesTest(unittest.TestCase):
           run_remote_script() {{ echo run-remote >> "$CALLS_FILE"; }}
           run_restart_only() {{ echo restart-only >> "$CALLS_FILE"; }}
           pull_remote_db() {{ echo pull-db >> "$CALLS_FILE"; }}
+          compare_db_state_before_upload() {{ echo compare-db >> "$CALLS_FILE"; }}
+          confirm_db_deploy() {{ echo confirm-db >> "$CALLS_FILE"; }}
+          deploy_db_candidate() {{ echo deploy-db >> "$CALLS_FILE"; }}
           main "$@"
         """
         return subprocess.run(
@@ -108,6 +112,27 @@ class CronogramaDeployModesTest(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("--with-db exige banco local SQLite válido", completed.stderr)
         self.assertEqual(self.recorded_calls(), [])
+
+    def test_with_db_keeps_code_rsync_separate_from_guarded_database_upload(self) -> None:
+        valid_db = self.root / "valid.db"
+        create_sqlite(valid_db, "candidate")
+
+        completed = self.run_main("--with-db", local_db=valid_db)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(
+            self.recorded_calls(),
+            [
+                "compile",
+                "remote-check",
+                "ensure-backup-dir",
+                "rsync",
+                "backup",
+                "compare-db",
+                "confirm-db",
+                "deploy-db",
+            ],
+        )
 
     def test_pull_db_without_local_database_downloads_without_local_backup(self) -> None:
         remote_db = self.root / "remote.db"
@@ -175,6 +200,160 @@ class CronogramaDeployModesTest(unittest.TestCase):
             local_connection.close()
         self.assertEqual(backup_marker, "local")
         self.assertEqual(local_marker, "remote")
+
+
+class CronogramaDeployRsyncPolicyTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory(prefix="cronograma-rsync-policy-")
+        self.root = Path(self.tempdir.name)
+        self.source = self.root / "source"
+        self.destination = self.root / "destination"
+        self.args_file = self.root / "rsync-args.txt"
+        self.source.mkdir()
+        self.destination.mkdir()
+
+        for relative, content in {
+            "app/main.py": "print('new code')\n",
+            "scripts/task.sh": "#!/usr/bin/env bash\n",
+            "tests/test_app.py": "def test_placeholder(): pass\n",
+            "docker-compose.yml": "services: {}\n",
+            "requirements.txt": "Flask==3.1.1\n",
+            "data/cronograma.db": "local database",
+            "data/secondary.db": "local secondary database",
+            "data/cache.sqlite": "local sqlite",
+            "data/cache.sqlite3": "local sqlite3",
+            "data/review_questions/uploads/local.png": "local upload",
+            "app/embedded.db": "local embedded database",
+        }.items():
+            path = self.source / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+        for relative, content in {
+            "data/cronograma.db": "remote database",
+            "data/secondary.db": "remote secondary database",
+            "data/cache.sqlite": "remote sqlite",
+            "data/cache.sqlite3": "remote sqlite3",
+            "data/review_questions/question.json": "remote question",
+            "data/review_questions/uploads/remote.png": "remote upload",
+            "data/backups/snapshot.db": "remote backup",
+            "app/remote-only.db": "remote embedded database",
+            "obsolete.txt": "delete me outside protected data",
+        }.items():
+            path = self.destination / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+
+        self.persistent_directories = [
+            self.destination / "data",
+            self.destination / "data/review_questions",
+            self.destination / "data/review_questions/uploads",
+        ]
+        fixed_time_ns = 1_600_000_000_000_000_000
+        for directory in reversed(self.persistent_directories):
+            os.utime(directory, ns=(fixed_time_ns, fixed_time_ns))
+        self.persistent_mtimes = {
+            directory: directory.stat().st_mtime_ns
+            for directory in self.persistent_directories
+        }
+
+    def tearDown(self) -> None:
+        self.tempdir.cleanup()
+
+    def run_rsync_project(
+        self, *, dry_run: bool = False, inject_delete: bool = False
+    ) -> subprocess.CompletedProcess[str]:
+        shell = f"""
+          export CRONOGRAMA_DEPLOY_LIB_ONLY=1
+          source {shlex.quote(str(DEPLOY_SCRIPT))}
+          PROJECT_DIR={shlex.quote(str(self.source))}
+          REMOTE_HOST=fixture
+          REMOTE_DIR=/fixture
+          DRY_RUN={1 if dry_run else 0}
+          DESTINATION={shlex.quote(str(self.destination))}
+          ARGS_FILE={shlex.quote(str(self.args_file))}
+          INJECT_DELETE={1 if inject_delete else 0}
+          rsync() {{
+            printf '%s\n' "$@" > "$ARGS_FILE"
+            local args=("$@")
+            local destination_index=$((${{#args[@]}} - 1))
+            local source_index=$((destination_index - 1))
+            local source_path="${{args[$source_index]}}"
+            local prefix=("${{args[@]:0:$source_index}}")
+            if [ "$INJECT_DELETE" -eq 1 ]; then
+              command rsync "${{prefix[@]}}" --delete "$source_path" "$DESTINATION/"
+            else
+              command rsync "${{prefix[@]}}" "$source_path" "$DESTINATION/"
+            fi
+          }}
+          rsync_project
+        """
+        return subprocess.run(
+            ["bash", "-c", shell],
+            cwd=PROJECT_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+    def assert_persistent_data_unchanged(self) -> None:
+        expected = {
+            "data/cronograma.db": "remote database",
+            "data/secondary.db": "remote secondary database",
+            "data/cache.sqlite": "remote sqlite",
+            "data/cache.sqlite3": "remote sqlite3",
+            "data/review_questions/question.json": "remote question",
+            "data/review_questions/uploads/remote.png": "remote upload",
+            "data/backups/snapshot.db": "remote backup",
+        }
+        for relative, content in expected.items():
+            self.assertEqual(
+                (self.destination / relative).read_text(encoding="utf-8"), content
+            )
+        self.assertFalse(
+            (self.destination / "data/review_questions/uploads/local.png").exists()
+        )
+        for directory, original_mtime in self.persistent_mtimes.items():
+            self.assertEqual(directory.stat().st_mtime_ns, original_mtime)
+
+    def test_normal_rsync_excludes_and_receiver_protects_all_data(self) -> None:
+        completed = self.run_rsync_project(inject_delete=True)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        args = self.args_file.read_text(encoding="utf-8").splitlines()
+        self.assertIn("--filter", args)
+        self.assertIn("protect /data/***", args)
+        self.assertIn("--exclude", args)
+        self.assertIn("/data/", args)
+        self.assertNotIn("--delete", args)
+        self.assertNotIn("--delete-excluded", args)
+        self.assert_persistent_data_unchanged()
+
+        self.assertEqual(
+            (self.destination / "app/main.py").read_text(encoding="utf-8"),
+            "print('new code')\n",
+        )
+        self.assertTrue((self.destination / "scripts/task.sh").exists())
+        self.assertTrue((self.destination / "tests/test_app.py").exists())
+        self.assertTrue((self.destination / "docker-compose.yml").exists())
+        self.assertTrue((self.destination / "requirements.txt").exists())
+        self.assertFalse((self.destination / "app/embedded.db").exists())
+        self.assertEqual(
+            (self.destination / "app/remote-only.db").read_text(encoding="utf-8"),
+            "remote embedded database",
+        )
+        self.assertFalse((self.destination / "obsolete.txt").exists())
+
+    def test_dry_run_uses_identical_data_protection_without_writes(self) -> None:
+        completed = self.run_rsync_project(dry_run=True)
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        args = self.args_file.read_text(encoding="utf-8").splitlines()
+        self.assertIn("--dry-run", args)
+        self.assertIn("protect /data/***", args)
+        self.assertIn("/data/", args)
+        self.assertFalse((self.destination / "app/main.py").exists())
+        self.assert_persistent_data_unchanged()
 
 
 if __name__ == "__main__":

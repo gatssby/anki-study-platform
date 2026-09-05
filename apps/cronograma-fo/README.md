@@ -359,14 +359,15 @@ Esse modo:
 - roda preflight local e remoto
 - valida a sintaxe Python local
 - sincroniza o projeto com `rsync`, sem `--delete`
-- exclui bancos SQLite e não envia `data/cronograma.db`
+- o rsync exclui e protege integralmente `data/`, sem alterar conteúdo, timestamps, permissões ou ownership
+- exclui também bancos `*.db`, `*.sqlite` e `*.sqlite3` encontrados fora de `data/`
 - cria snapshot remoto consistente antes do rebuild/recreate
 - executa `docker compose up -d --build --force-recreate`
 - só conclui depois de confirmar container ativo, processo principal disponível e HTTP 200 em `/database?track=FO`
 - mostra os logs recentes e retorna erro se o healthcheck esgotar as tentativas
 - não importa FO ou UN, não limpa diretórios e não executa prune
 
-As exclusões do rsync normal incluem `.git/`, ambientes virtuais, caches Python, `node_modules/`, `backups/`, `state/`, `output/`, `work/`, `imports/`, `data/backups/`, bancos `*.db`/`*.sqlite*`, planilhas, CSVs, PDFs e arquivos temporários. Como não há `--delete`, arquivos remotos fora do conjunto enviado não são removidos automaticamente.
+Todo `data/` é estado persistente de runtime e não contém arquivos versionados necessários ao deploy. O rsync normal usa `--exclude "/data/"` para não atravessar nem atualizar metadados dessa árvore e `--filter "protect /data/***"` para impedir que uma eventual opção `--delete` remova dados no receptor. `--delete-excluded` não faz parte do fluxo. As demais exclusões incluem `.git/`, ambientes virtuais, caches Python, `node_modules/`, `backups/`, `state/`, `output/`, `work/`, `imports/`, bancos `*.db`/`*.sqlite*` fora de `data/`, planilhas, CSVs, PDFs e arquivos temporários.
 
 ### 6.4 Operações explícitas com banco
 
@@ -384,7 +385,7 @@ O envio de banco é excepcional:
 cronograma_deploy --with-db
 ```
 
-`--with-db` valida o banco candidato, cria e valida snapshot remoto, compara exatamente o estado protegido, verifica uploads referenciados e gera relatório antes da confirmação `DEPLOY_DB`. A troca ocorre com o app parado; depois há validação, recreate e healthcheck, com rollback automático do snapshot em caso de falha.
+`--with-db` mantém o mesmo rsync de código com `data/` integralmente excluído. Em uma etapa separada, envia somente `data/cronograma.db` para um arquivo candidato temporário, valida o candidato, cria e valida snapshot remoto, compara exatamente o estado protegido, verifica uploads referenciados e gera relatório antes da confirmação `DEPLOY_DB`. Nenhum outro arquivo ou diretório de `data/` é enviado. A troca do banco ocorre com o app parado; depois há validação, recreate e healthcheck, com rollback automático do snapshot em caso de falha.
 
 Por padrão, qualquer perda ou regressão de estado aborta. `--force-db-overwrite` permite ultrapassar esse bloqueio somente junto de `--with-db` e exige a confirmação distinta `FORCE_DEPLOY_DB_LOSS`; é uma opção emergencial com risco explícito de perda.
 
