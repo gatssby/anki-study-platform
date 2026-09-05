@@ -170,6 +170,12 @@ def add_recalc_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-daily-minutes-saturday", type=int, help="Teto diario de sabado.")
     parser.add_argument("--max-daily-minutes-sunday", type=int, help="Teto diario de domingo.")
     parser.add_argument(
+        "--diagnose-lesson-prefix",
+        action="append",
+        default=None,
+        help="Exibe ordem/status/data das aulas cujo codigo comeca pelo prefixo (ex.: POR2).",
+    )
+    parser.add_argument(
         "--save-settings",
         action="store_true",
         help="Persiste as flags informadas mesmo em dry-run.",
@@ -438,7 +444,12 @@ def handle_recalculate(args: argparse.Namespace) -> int:
                 print(f"backup_automatico: {report.backup_path}")
             return 0
 
-        report = build_reprogram_report(conn=conn, settings=effective_settings, as_of_date=as_of_date)
+        report = build_reprogram_report(
+            conn=conn,
+            settings=effective_settings,
+            as_of_date=as_of_date,
+            diagnostic_lesson_prefixes=tuple(args.diagnose_lesson_prefix or ()),
+        )
         if args.save_settings:
             save_schedule_settings(conn, effective_settings)
             conn.commit()
@@ -523,6 +534,22 @@ def print_report(report: Any, mode: str) -> None:
     print(f"carga_total_restante_FO: {report.remaining_units_by_track.get('FO', 0)}")
     print(f"carga_total_restante: {report.total_remaining_units}")
     print(f"carga_total_disponivel: {report.total_capacity_units}")
+    print(f"aulas_nao_alocadas_FO: {report.unallocated_lesson_count_by_track.get('FO', 0)}")
+    print(f"aulas_nao_alocadas_UN: {report.unallocated_lesson_count_by_track.get('UN', 0)}")
+    print(
+        "diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas: "
+        f"{report.fo_plan_summary.get('standalone_unallocated_lesson_count', 0)}"
+    )
+    for track_code in ("FO", "UN"):
+        duration = report.duration_diagnostics.get(track_code, {})
+        print(
+            f"duracoes_{track_code}: "
+            f"aulas_com_duracao_real={duration.get('real_duration_lesson_count', 0)} "
+            f"aulas_com_fallback={duration.get('fallback_lesson_count', 0)} "
+            f"minutos_duracao_real={duration.get('real_duration_minutes', 0)} "
+            f"minutos_fallback={duration.get('fallback_minutes', 0)} "
+            f"fallback_por_aula={duration.get('fallback_minutes_per_lesson', 0)}"
+        )
     print(f"media_diaria_necessaria: {report.required_average_units:.2f}")
     print(
         "tetos_configurados: "
@@ -584,6 +611,29 @@ def print_report(report: Any, mode: str) -> None:
             print(
                 f"- {row['date']} carga={row['assigned_units']} capacidade={row['capacity_units']} "
                 f"overflow={row['overflow_units']}"
+            )
+    print_lesson_order_diagnostics(report.lesson_order_diagnostics)
+
+
+def print_lesson_order_diagnostics(diagnostics: list[dict[str, Any]]) -> None:
+    if not diagnostics:
+        return
+    print("diagnostico_ordem_pedagogica:")
+    for diagnostic in diagnostics:
+        print(
+            f"- prefixo={diagnostic['prefix']} "
+            f"status={'ok' if diagnostic['is_valid'] else 'erro'} "
+            f"projetadas={diagnostic['projected_lesson_count']} "
+            f"nao_alocadas={diagnostic['unallocated_lesson_count']}"
+        )
+        for error in diagnostic["errors"]:
+            print(f"  erro={error}")
+        for entry in diagnostic["entries"]:
+            print(
+                f"  codigo={entry['lesson_code']} status={entry['status']} "
+                f"data_projetada={entry['projected_date'] or '-'} "
+                f"data_atual={entry['current_date'] or '-'} "
+                f"motivo={entry['reason'] or '-'}"
             )
 
 
@@ -682,6 +732,7 @@ def has_recalc_intent(args: argparse.Namespace) -> bool:
         "max_daily_minutes_weekday",
         "max_daily_minutes_saturday",
         "max_daily_minutes_sunday",
+        "diagnose_lesson_prefix",
         "save_settings",
     ]
     return any(getattr(args, key, None) not in {None, False} for key in keys)

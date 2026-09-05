@@ -93,6 +93,7 @@ class DailyCapacityUnitTest(unittest.TestCase):
     def test_duration_seconds_are_converted_once_to_minutes(self) -> None:
         self.assertEqual(lesson_weight_units({"duration_seconds": 90 * 60}), 90)
         self.assertEqual(lesson_weight_units({"duration_seconds": 0}), 45)
+        self.assertEqual(lesson_weight_units({"track_code": "UN", "duration_seconds": 0}), 10)
         day = build_planned_days(
             settings(date(2026, 9, 7)), date(2026, 9, 7), date(2026, 9, 7), []
         )[0]
@@ -127,7 +128,7 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
         self,
         code: str,
         track: str,
-        minutes: int,
+        minutes: int | None,
         order: int,
         *,
         subject: str | None = None,
@@ -143,7 +144,8 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
             ) VALUES (?, ?, ?, 'lesson', ?, NULL, ?, ?, ?, 'I', 1, ?, 1, 1, 'Segunda', ?, ?, 0, 0, NULL, 'test')
             """,
             (
-                f"S-{code}", code, track, f"{subject_code} Aula {order}", minutes * 60,
+                f"S-{code}", code, track, f"{subject_code} Aula {order}",
+                minutes * 60 if minutes is not None else None,
                 subject_code, subject_code, order, order, "2026-09-05",
             ),
         )
@@ -206,6 +208,91 @@ class ReprogrammingCapacityIntegrationTest(unittest.TestCase):
         self.assertEqual(report.capacity_deficit_units, 60)
         self.assertFalse(report.feasible)
         self.assertEqual(report.assignment_count, 0)
+
+    def test_shared_and_standalone_fo_unallocated_counts_are_explicit(self) -> None:
+        for index in range(1, 4):
+            self.insert_lesson(f"FO-{index}", "FO", 80, index, subject="MAT")
+        for index in range(1, 3):
+            self.insert_lesson(f"UN-{index}", "UN", 120, index)
+        report = self.report_for(date(2026, 9, 7), date(2026, 9, 7))
+
+        self.assertEqual(report.fo_plan_summary["scope"], "standalone_fo_only_without_un_capacity_competition")
+        self.assertEqual(report.fo_plan_summary["standalone_unallocated_lesson_count"], 0)
+        self.assertEqual(report.unallocated_lesson_count_by_track, {"FO": 2, "UN": 1})
+        self.assertTrue(
+            any("FO=2 e UN=1" in error for error in report.validation_errors)
+        )
+
+        output = io.StringIO()
+        with redirect_stdout(output):
+            print_report(report, mode="dry-run")
+        rendered = output.getvalue()
+        self.assertIn("aulas_nao_alocadas_FO: 2", rendered)
+        self.assertIn("diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas: 0", rendered)
+
+    def test_duration_diagnostics_separate_real_and_fallback_minutes_by_track(self) -> None:
+        self.insert_lesson("FO-REAL", "FO", 60, 1, subject="MAT")
+        self.insert_lesson("FO-FALLBACK", "FO", None, 2, subject="MAT")
+        self.insert_lesson("UN-REAL", "UN", 8, 1)
+        self.insert_lesson("UN-FALLBACK", "UN", None, 2)
+        report = self.report_for(date(2026, 9, 7), date(2026, 9, 7))
+
+        self.assertEqual(
+            report.duration_diagnostics["FO"],
+            {
+                "real_duration_lesson_count": 1,
+                "fallback_lesson_count": 1,
+                "real_duration_minutes": 60,
+                "fallback_minutes": 45,
+                "fallback_minutes_per_lesson": 45,
+            },
+        )
+        self.assertEqual(
+            report.duration_diagnostics["UN"],
+            {
+                "real_duration_lesson_count": 1,
+                "fallback_lesson_count": 1,
+                "real_duration_minutes": 8,
+                "fallback_minutes": 10,
+                "fallback_minutes_per_lesson": 10,
+            },
+        )
+
+    def test_por2_diagnostic_lists_seen_cut_and_projected_lessons_in_order(self) -> None:
+        durations = [55, 10, 50, 15, 45, 20, 40, 25, 35, 30]
+        for index, minutes in enumerate(durations, start=1):
+            self.insert_lesson(f"POR2A{index}", "FO", minutes, index, subject="POR")
+        self.conn.execute("UPDATE lessons SET is_seen=1 WHERE lesson_code='POR2A1'")
+        self.conn.execute(
+            "UPDATE lessons SET is_cut=1, cut_source='manual', cut_reason='fixture' "
+            "WHERE lesson_code='POR2A2'"
+        )
+        self.conn.commit()
+        report = build_reprogram_report(
+            self.conn,
+            settings(date(2026, 9, 9)),
+            as_of_date=date(2026, 9, 7),
+            diagnostic_lesson_prefixes=("POR2",),
+        )
+
+        diagnostic = report.lesson_order_diagnostics[0]
+        self.assertTrue(diagnostic["is_valid"])
+        self.assertEqual(
+            [(entry["lesson_code"], entry["status"]) for entry in diagnostic["entries"]],
+            [("POR2A1", "seen"), ("POR2A2", "cut")]
+            + [(f"POR2A{index}", "projected") for index in range(3, 11)],
+        )
+        projected_entries = [
+            entry for entry in diagnostic["entries"] if entry["status"] == "projected"
+        ]
+        self.assertEqual(
+            [entry["lesson_code"] for entry in projected_entries],
+            [f"POR2A{index}" for index in range(3, 11)],
+        )
+        self.assertEqual(
+            [entry["projected_date"] for entry in projected_entries],
+            sorted(entry["projected_date"] for entry in projected_entries),
+        )
 
     def test_current_shape_fixture_reports_real_capacity_and_infeasibility(self) -> None:
         for index in range(1, 112):

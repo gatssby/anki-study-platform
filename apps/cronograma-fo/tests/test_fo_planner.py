@@ -228,7 +228,7 @@ class SharedFOPlannerIntegrationTest(unittest.TestCase):
 
     def test_web_and_sync_report_the_same_fo_feasibility_and_capacity(self):
         web, script, _ = self.reports()
-        self.assertEqual(web.fo_plan_summary["is_feasible"], script["is_feasible"])
+        self.assertEqual(web.fo_plan_summary["standalone_is_feasible"], script["is_feasible"])
         self.assertEqual(web.fo_plan_summary["total_load_seconds"], script["total_load_seconds"])
         self.assertEqual(web.fo_plan_summary["total_capacity_seconds"], script["total_capacity_seconds"])
         self.assertEqual(web.fo_plan_summary["deficit_seconds"], script["deficit_seconds"])

@@ -235,6 +235,17 @@ python3 scripts/reprogram_schedule.py \
   --dry-run
 ```
 
+O relatório separa, por track, aulas com duração real e aulas estimadas. FO sem duração usa o fallback conservador de 45 minutos; UN usa 10 minutos, correspondente ao quartil superior observado nos itens UN com duração real (mediana próxima de 7–8 minutos). Para auditar uma sequência pedagógica específica, incluindo aulas já vistas ou cortadas:
+
+```bash
+python3 scripts/reprogram_schedule.py \
+  --as-of-date 2026-09-05 \
+  recalculate --dry-run \
+  --diagnose-lesson-prefix POR2
+```
+
+O diagnóstico imprime código, status, data atual e data projetada em ordem pedagógica. A contagem `aulas_nao_alocadas_FO` pertence ao plano compartilhado FO + UN; `diagnostico_fo_isolado_sem_competicao_UN_nao_alocadas` é apenas a simulação FO isolada, sem consumo de capacidade pela UN.
+
 ### Apply
 
 ```bash

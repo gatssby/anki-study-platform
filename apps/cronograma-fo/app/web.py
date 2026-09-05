@@ -220,6 +220,8 @@ def serialize_report(report) -> dict[str, object]:
         "remaining_total_units": report.total_remaining_units,
         "remaining_fo_units": report.remaining_units_by_track.get("FO", 0),
         "remaining_un_units": report.remaining_units_by_track.get("UN", 0),
+        "unallocated_lessons_by_track": report.unallocated_lesson_count_by_track,
+        "duration_diagnostics": report.duration_diagnostics,
         "total_capacity_units": report.total_capacity_units,
         "capacity_deficit_units": report.capacity_deficit_units,
         "overflow_days": report.overflow_days,
@@ -235,6 +237,7 @@ def serialize_report(report) -> dict[str, object]:
         "backup_path": str(report.backup_path) if report.backup_path else None,
         "feasible": report.feasible,
         "fo_plan": report.fo_plan_summary,
+        "lesson_order_diagnostics": report.lesson_order_diagnostics,
         "distribution_diagnostics": report.distribution_diagnostics,
         "validation_errors": report.validation_errors,
     }

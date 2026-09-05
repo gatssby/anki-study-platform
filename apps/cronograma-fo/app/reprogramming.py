@@ -31,7 +31,8 @@ TRACK_ORDER = {"FO": 0, "UN": 1}
 DEFAULT_WEEKDAY_MINUTES = 240
 DEFAULT_SATURDAY_MINUTES = 180
 DEFAULT_SUNDAY_MINUTES = 180
-DEFAULT_LESSON_MINUTES = 45
+DEFAULT_FO_LESSON_MINUTES = 45
+DEFAULT_UN_LESSON_MINUTES = 10
 TRACK_DATE_SOURCES = {
     "FO": {
         "source_table": "lessons",
@@ -122,6 +123,8 @@ class ReprogramReport:
     explicit_unavailability: list[ScheduleUnavailability]
     total_remaining_units: int
     remaining_units_by_track: dict[str, int]
+    unallocated_lesson_count_by_track: dict[str, int]
+    duration_diagnostics: dict[str, dict[str, int]]
     cut_summary: dict[str, int]
     weekly_distribution: list[dict[str, Any]]
     track_distribution: list[dict[str, Any]]
@@ -138,6 +141,7 @@ class ReprogramReport:
     unavailable_day_count: int
     simulation_token: str
     fo_plan_summary: dict[str, Any] = field(default_factory=dict)
+    lesson_order_diagnostics: list[dict[str, Any]] = field(default_factory=list)
     distribution_diagnostics: dict[str, Any] = field(default_factory=dict)
     validation_errors: list[str] = field(default_factory=list)
     backup_path: Path | None = None
@@ -389,6 +393,7 @@ def build_reprogram_report(
     conn: sqlite3.Connection,
     settings: ScheduleSettings,
     as_of_date: date | None = None,
+    diagnostic_lesson_prefixes: tuple[str, ...] = (),
 ) -> ReprogramReport:
     effective_as_of = as_of_date or current_local_date()
     normalized = normalized_settings(settings)
@@ -456,6 +461,8 @@ def build_reprogram_report(
     unavailable_day_count = len(planned_days) - available_day_count
 
     remaining_units_by_track = summarize_remaining_units_by_track(candidates)
+    unallocated_lesson_count_by_track = summarize_candidate_counts_by_track(unallocated_candidates)
+    duration_diagnostics = summarize_duration_diagnostics(candidates)
     generated_days = [day for day in planned_days if day.assignments]
     required_average_units = total_remaining_units / available_day_count if available_day_count else 0.0
     distribution_diagnostics = build_planned_distribution_diagnostics(
@@ -468,7 +475,8 @@ def build_reprogram_report(
         expected_track_counts=summarize_candidate_counts_by_track(candidates),
     )
     fo_plan_summary = {
-        "is_feasible": fo_plan.is_feasible,
+        "scope": "standalone_fo_only_without_un_capacity_competition",
+        "standalone_is_feasible": fo_plan.is_feasible,
         "capacity_mode": fo_plan.capacity_mode,
         "configured_daily_minutes_ignored": False,
         "total_load_seconds": fo_plan.total_load_seconds,
@@ -478,8 +486,8 @@ def build_reprogram_report(
         "deficit_seconds": fo_plan.deficit_seconds,
         "raw_capacity_deficit_seconds": fo_plan.raw_capacity_deficit_seconds,
         "allocated_lesson_count": len(fo_plan.assignments),
-        "unallocated_lesson_count": len(fo_plan.unallocated_lessons),
-        "unallocated_lessons": [
+        "standalone_unallocated_lesson_count": len(fo_plan.unallocated_lessons),
+        "standalone_unallocated_lessons": [
             {
                 "lesson_code": item.lesson.lesson_code,
                 "duration_seconds": item.duration_seconds,
@@ -494,23 +502,25 @@ def build_reprogram_report(
         "max_daily_load_seconds": fo_plan.max_daily_load_seconds,
         "daily_summary": fo_plan.daily_summary,
     }
-    if not fo_plan.is_feasible:
-        validation_errors.append(
-            f"Plano FO inviável: {len(fo_plan.unallocated_lessons)} aulas não alocadas, "
-            f"{fo_plan.unallocated_load_seconds} segundos não alocados."
-        )
     if unallocated_candidates:
         validation_errors.append(
-            f"Plano geral inviável: {len(unallocated_candidates)} aulas não alocadas dentro "
-            "da capacidade diária e da data-alvo."
+            "Plano compartilhado FO + UN inviável: "
+            f"FO={unallocated_lesson_count_by_track.get('FO', 0)} e "
+            f"UN={unallocated_lesson_count_by_track.get('UN', 0)} aulas não alocadas; "
+            f"total={len(unallocated_candidates)}."
         )
     total_capacity_units = sum(day.capacity_units for day in planned_days)
     capacity_deficit_units = max(total_remaining_units - total_capacity_units, 0)
     overflow_days = find_overflow_days(planned_days)
-    fo_plan_summary["overall_unallocated_lesson_count"] = len(unallocated_candidates)
-    fo_plan_summary["overall_unallocated_lesson_codes"] = [
-        candidate.lesson_code for candidate in unallocated_candidates
-    ]
+    fo_plan_summary["shared_plan_unallocated_lesson_count"] = len(unallocated_candidates)
+    fo_plan_summary["shared_plan_unallocated_by_track"] = unallocated_lesson_count_by_track
+    lesson_order_diagnostics = build_lesson_order_diagnostics(
+        rows=fo_rows,
+        ordered_fo_lessons=ordered_fo_lessons,
+        planned_days=planned_days,
+        unallocated_candidates=unallocated_candidates,
+        prefixes=diagnostic_lesson_prefixes,
+    )
     simulation_token = build_simulation_token(
         settings=normalized,
         unavailability=unavailability,
@@ -526,6 +536,8 @@ def build_reprogram_report(
         explicit_unavailability=unavailability,
         total_remaining_units=total_remaining_units,
         remaining_units_by_track=remaining_units_by_track,
+        unallocated_lesson_count_by_track=unallocated_lesson_count_by_track,
+        duration_diagnostics=duration_diagnostics,
         cut_summary=cut_summary,
         weekly_distribution=summarize_weekly_distribution(generated_days),
         track_distribution=summarize_track_distribution(generated_days),
@@ -542,6 +554,7 @@ def build_reprogram_report(
         unavailable_day_count=unavailable_day_count,
         simulation_token=simulation_token,
         fo_plan_summary=fo_plan_summary,
+        lesson_order_diagnostics=lesson_order_diagnostics,
         distribution_diagnostics=distribution_diagnostics,
         validation_errors=validation_errors,
     )
@@ -996,6 +1009,151 @@ def summarize_candidate_counts_by_track(candidates: list[LessonCandidate]) -> di
     return dict(totals)
 
 
+def summarize_duration_diagnostics(
+    candidates: list[LessonCandidate],
+) -> dict[str, dict[str, int]]:
+    diagnostics = {
+        track_code: {
+            "real_duration_lesson_count": 0,
+            "fallback_lesson_count": 0,
+            "real_duration_minutes": 0,
+            "fallback_minutes": 0,
+            "fallback_minutes_per_lesson": fallback_minutes_for_track(track_code),
+        }
+        for track_code in TRACK_ORDER
+    }
+    for candidate in candidates:
+        track = diagnostics.setdefault(
+            candidate.track_code,
+            {
+                "real_duration_lesson_count": 0,
+                "fallback_lesson_count": 0,
+                "real_duration_minutes": 0,
+                "fallback_minutes": 0,
+                "fallback_minutes_per_lesson": fallback_minutes_for_track(candidate.track_code),
+            },
+        )
+        if source_duration_seconds(candidate.row) > 0:
+            track["real_duration_lesson_count"] += 1
+            track["real_duration_minutes"] += candidate.weight_units
+        else:
+            track["fallback_lesson_count"] += 1
+            track["fallback_minutes"] += candidate.weight_units
+    return diagnostics
+
+
+def build_lesson_order_diagnostics(
+    *,
+    rows: list[dict[str, Any]],
+    ordered_fo_lessons: list[Any],
+    planned_days: list[PlannedDay],
+    unallocated_candidates: list[LessonCandidate],
+    prefixes: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    normalized_prefixes = tuple(
+        dict.fromkeys(prefix.strip().upper() for prefix in prefixes if prefix.strip())
+    )
+    if not normalized_prefixes:
+        return []
+
+    projected_date_by_code = {
+        assignment.lesson.lesson_code: day.date_value.isoformat()
+        for day in planned_days
+        for assignment in day.assignments
+        if assignment.lesson.track_code == "FO"
+    }
+    actual_projected_codes = [
+        assignment.lesson.lesson_code
+        for day in planned_days
+        for assignment in day.assignments
+        if assignment.lesson.track_code == "FO"
+    ]
+    canonical_codes = [lesson.lesson_code for lesson in ordered_fo_lessons]
+    canonical_code_set = set(canonical_codes)
+    unallocated_codes = {
+        candidate.lesson_code
+        for candidate in unallocated_candidates
+        if candidate.track_code == "FO"
+    }
+    result: list[dict[str, Any]] = []
+
+    for prefix in normalized_prefixes:
+        matching_rows = sorted(
+            (row for row in rows if str(row.get("lesson_code") or "").upper().startswith(prefix)),
+            key=lambda row: (
+                int(row.get("module_number") or 9999),
+                int(row.get("lesson_number") or 9999),
+                int(row.get("slot_index") or 0),
+                row["lesson_code"],
+            ),
+        )
+        expected_projected_codes = [
+            code for code in canonical_codes if code.upper().startswith(prefix) and code in projected_date_by_code
+        ]
+        actual_codes = [code for code in actual_projected_codes if code.upper().startswith(prefix)]
+        errors: list[str] = []
+        if actual_codes != expected_projected_codes:
+            errors.append("A ordem projetada diverge da ordem pedagógica canônica.")
+        canonical_projected_dates = [projected_date_by_code[code] for code in expected_projected_codes]
+        if canonical_projected_dates != sorted(canonical_projected_dates):
+            errors.append("Uma aula posterior foi projetada antes de sua predecessora.")
+        unallocated_predecessor = False
+        for code in (item for item in canonical_codes if item.upper().startswith(prefix)):
+            if code in unallocated_codes:
+                unallocated_predecessor = True
+            elif unallocated_predecessor and code in projected_date_by_code:
+                errors.append(
+                    "Uma aula posterior foi projetada enquanto uma predecessora elegível ficou não alocada."
+                )
+                break
+
+        entries: list[dict[str, Any]] = []
+        for row in matching_rows:
+            code = row["lesson_code"]
+            cut_flags = derive_cut_flags(row)
+            if int(row.get("is_seen") or 0) == 1:
+                status = "seen"
+                reason = "already_seen"
+            elif cut_flags["effective"]:
+                status = "cut"
+                reason = row.get("cut_reason") or next(
+                    (name for name in ("manual", "review_free", "english", "already_cut") if cut_flags[name]),
+                    "cut",
+                )
+            elif code in projected_date_by_code:
+                status = "projected"
+                reason = None
+            elif code in unallocated_codes or code in canonical_code_set:
+                status = "unallocated"
+                reason = "insufficient_shared_capacity"
+            else:
+                status = "excluded"
+                reason = "not_an_eligible_fo_lesson"
+            entries.append(
+                {
+                    "lesson_code": code,
+                    "status": status,
+                    "reason": reason,
+                    "projected_date": projected_date_by_code.get(code),
+                    "current_date": row.get("recommended_date"),
+                }
+            )
+
+        result.append(
+            {
+                "prefix": prefix,
+                "is_valid": not errors,
+                "projected_lesson_count": len(actual_codes),
+                "unallocated_lesson_count": sum(
+                    entry["status"] == "unallocated" for entry in entries
+                ),
+                "errors": errors,
+                "entries": entries,
+            }
+        )
+    return result
+
+
 def build_planned_distribution_diagnostics(
     planned_days: list[PlannedDay],
     as_of_date: date,
@@ -1399,13 +1557,23 @@ def build_group_label(row: dict[str, Any]) -> str:
 
 def lesson_weight_units(row: dict[str, Any]) -> int:
     """Return the lesson load in whole minutes; source durations are seconds."""
-    try:
-        duration_seconds = int(row.get("duration_seconds") or 0)
-    except (TypeError, ValueError):
-        duration_seconds = 0
+    duration_seconds = source_duration_seconds(row)
     if duration_seconds > 0:
         return max(int(round(duration_seconds / 60)), 1)
-    return DEFAULT_LESSON_MINUTES
+    return fallback_minutes_for_track(str(row.get("track_code") or ""))
+
+
+def source_duration_seconds(row: dict[str, Any]) -> int:
+    try:
+        return max(int(row.get("duration_seconds") or 0), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def fallback_minutes_for_track(track_code: str) -> int:
+    if track_code.upper() == "UN":
+        return DEFAULT_UN_LESSON_MINUTES
+    return DEFAULT_FO_LESSON_MINUTES
 
 
 def scalar_int(conn: sqlite3.Connection, query: str) -> int:
