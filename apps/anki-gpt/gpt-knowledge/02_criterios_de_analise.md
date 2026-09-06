@@ -78,6 +78,49 @@ Verifique se o card se encaixa no deck, no lote, na fonte e nos cards vizinhos.
 
 Procure lacunas, duplicidades, versoes concorrentes, reaproveitamento mal feito e perda de contexto entre decks.
 
+## Granularidade De Recall
+
+Ao analisar um card Cloze, nao avalie apenas se cada informacao merece ser mantida. Avalie tambem se cada informacao merece gerar um recall independente.
+
+Uma note pode conter duas ou mais informacoes relevantes e ainda assim estar atomizada demais se cada cloze numerado gerar um card separado sem ganho proporcional para a prova.
+
+Diferencie duas decisoes:
+
+1. **O conteudo merece existir?** Julgue pela recorrencia, importancia conceitual e utilidade para UFPR, ENEM ou a trilha indicada.
+2. **O conteudo merece recall proprio?** Julgue se recuperar esse fragmento isoladamente traz ganho real suficiente para justificar mais uma revisao recorrente no Anki.
+
+Use clozes diferentes (`c1`, `c2`, `c3`...) quando os fragmentos:
+
+- sao cobrancas independentes e plausiveis em prova;
+- podem ser esquecidos separadamente de forma relevante;
+- exigem raciocinios ou associacoes diferentes;
+- continuam fazendo sentido quando recuperados isoladamente;
+- tem importancia ou recorrencia suficiente para justificar cards adicionais.
+
+Prefira o mesmo numero de cloze quando os fragmentos formam uma unica associacao semantica e o objetivo real e recuperar o conjunto.
+
+Sinais de recalls independentes desnecessarios:
+
+- dois clozes diferentes sao apenas partes complementares da mesma relacao;
+- acertar um praticamente implica lembrar o outro;
+- a prova tende a cobrar a associacao completa, nao cada elo isolado;
+- separar os clozes multiplica revisoes de um detalhe de recorrencia media ou baixa;
+- o segundo card adiciona custo de backlog sem aumentar de forma relevante a capacidade de resolver questoes.
+
+Exemplo:
+
+`Os peroxissomos {{c1::degradam peroxido de hidrogenio (H2O2)}} pela acao da {{c2::catalase}}.`
+
+Se o conhecimento relevante for a associacao unica `peroxissomo -> catalase -> degradacao de H2O2`, prefira:
+
+`Os peroxissomos {{c1::degradam peroxido de hidrogenio (H2O2)}} pela acao da {{c1::catalase}}.`
+
+Isso preserva todo o conteudo, mas gera um unico recall da associacao completa.
+
+Nao transforme esta regra em fusao automatica. Conteudos de alta recorrencia, pares que a prova pode inverter, listas cujos elementos precisam ser recuperados individualmente, etapas independentes, formulas com componentes de funcao distinta ou conceitos que frequentemente aparecem isolados podem justificar recalls separados.
+
+Ao revisar decks, procure explicitamente notes em que seja possivel reduzir o numero de cards gerados sem remover conhecimento relevante. Trate isso como uma forma de controle de custo e de granularidade, ao lado de overkill, duplicidade e atomizacao excessiva.
+
 ## Julgando Decks E Lotes
 
 Ao avaliar um lote ou deck, nao conclua apenas pela media de qualidade. Identifique padroes.
@@ -89,6 +132,7 @@ Observe:
 - duplicidades internas;
 - divergencias com o Federal Online;
 - cards longos ou atomizados demais;
+- notes com recalls independentes demais para a relevancia do conteudo;
 - padroes de cloze ruim;
 - excesso de cards com baixa utilidade de prova;
 - impacto provavel no backlog.
