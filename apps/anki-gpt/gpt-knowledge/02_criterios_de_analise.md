@@ -84,10 +84,22 @@ Ao analisar um card Cloze, nao avalie apenas se cada informacao merece ser manti
 
 Uma note pode conter duas ou mais informacoes relevantes e ainda assim estar atomizada demais se cada cloze numerado gerar um card separado sem ganho proporcional para a prova.
 
+A granularidade de recall deve ser proporcional ao peso do tema na prova. Sempre que houver material de recorrencia da materia em `Recorrência /`, use-o explicitamente como evidencia para decidir se vale aumentar, manter ou reduzir o numero de recalls de uma note.
+
 Diferencie duas decisoes:
 
 1. **O conteudo merece existir?** Julgue pela recorrencia, importancia conceitual e utilidade para UFPR, ENEM ou a trilha indicada.
-2. **O conteudo merece recall proprio?** Julgue se recuperar esse fragmento isoladamente traz ganho real suficiente para justificar mais uma revisao recorrente no Anki.
+2. **O conteudo merece recall proprio?** Julgue se recuperar esse fragmento isoladamente traz ganho real suficiente para justificar mais uma revisao recorrente no Anki, considerando sobretudo o peso do tema nos materiais de recorrencia.
+
+A recorrencia funciona como multiplicador de granularidade, nao como regra mecanica. Em geral:
+
+- temas e subtemas de alta recorrencia toleram e podem justificar mais recalls independentes, inclusive `c2`, `c3` ou novos cards, quando isso separa cobrancas realmente uteis;
+- temas de recorrencia intermediaria pedem equilibrio entre cobertura e custo, mantendo recalls separados apenas quando houver ganho claro de recuperacao ou de resolucao de questoes;
+- temas de baixa recorrencia sofrem maior pressao para consolidacao: prefira um recall da associacao essencial em vez de varios recalls de detalhes subordinados;
+- um detalhe de baixa recorrencia dentro de um tema muito recorrente nao herda automaticamente toda a importancia do tema; julgue no nivel mais especifico que os materiais permitirem;
+- a ausencia de um subtema nos materiais de recorrencia nao prova irrelevancia, mas reduz a justificativa para multiplicar recalls sem outra evidencia forte.
+
+Nao use uma tabela rigida do tipo "X estrelas = Y clozes". Os materiais de recorrencia informam prioridade relativa; a decisao final ainda depende de independencia semantica, forma de cobranca, chance de esquecimento separado, custo de revisao e utilidade pratica para a prova.
 
 Use clozes diferentes (`c1`, `c2`, `c3`...) quando os fragmentos:
 
@@ -107,11 +119,13 @@ Sinais de recalls independentes desnecessarios:
 - separar os clozes multiplica revisoes de um detalhe de recorrencia media ou baixa;
 - o segundo card adiciona custo de backlog sem aumentar de forma relevante a capacidade de resolver questoes.
 
-Exemplo:
+A regra tambem funciona no sentido contrario. Ao revisar uma note de tema muito recorrente, verifique se ha informacoes atualmente fundidas em um unico recall que deveriam ser separadas porque a prova cobra seus componentes de forma independente. Nesses casos, recomende aumentar a granularidade, por exemplo convertendo partes do mesmo `c1` em `c1`, `c2`, `c3` ou criando cards separados quando a estrutura exigir.
+
+Exemplo de consolidacao:
 
 `Os peroxissomos {{c1::degradam peroxido de hidrogenio (H2O2)}} pela acao da {{c2::catalase}}.`
 
-Se o conhecimento relevante for a associacao unica `peroxissomo -> catalase -> degradacao de H2O2`, prefira:
+Se o conhecimento relevante for a associacao unica `peroxissomo -> catalase -> degradacao de H2O2` e o subtema tiver baixa recorrencia, prefira:
 
 `Os peroxissomos {{c1::degradam peroxido de hidrogenio (H2O2)}} pela acao da {{c1::catalase}}.`
 
@@ -119,7 +133,7 @@ Isso preserva todo o conteudo, mas gera um unico recall da associacao completa.
 
 Nao transforme esta regra em fusao automatica. Conteudos de alta recorrencia, pares que a prova pode inverter, listas cujos elementos precisam ser recuperados individualmente, etapas independentes, formulas com componentes de funcao distinta ou conceitos que frequentemente aparecem isolados podem justificar recalls separados.
 
-Ao revisar decks, procure explicitamente notes em que seja possivel reduzir o numero de cards gerados sem remover conhecimento relevante. Trate isso como uma forma de controle de custo e de granularidade, ao lado de overkill, duplicidade e atomizacao excessiva.
+Ao revisar decks, procure explicitamente tanto notes em que seja possivel reduzir o numero de cards gerados sem remover conhecimento relevante quanto notes em que o peso do tema justifique aumentar a granularidade. Trate isso como uma forma de alocacao de revisoes segundo recorrencia: gastar mais recalls onde a prova cobra mais e menos recalls onde o retorno marginal e baixo.
 
 ## Julgando Decks E Lotes
 
@@ -132,7 +146,8 @@ Observe:
 - duplicidades internas;
 - divergencias com o Federal Online;
 - cards longos ou atomizados demais;
-- notes com recalls independentes demais para a relevancia do conteudo;
+- notes com recalls independentes demais ou de menos para a recorrencia do tema;
+- distribuicao do custo de revisao em relacao ao peso dos temas nos materiais de recorrencia;
 - padroes de cloze ruim;
 - excesso de cards com baixa utilidade de prova;
 - impacto provavel no backlog.
