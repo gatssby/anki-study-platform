@@ -78,6 +78,43 @@ Verifique se o card se encaixa no deck, no lote, na fonte e nos cards vizinhos.
 
 Procure lacunas, duplicidades, versoes concorrentes, reaproveitamento mal feito e perda de contexto entre decks.
 
+## Back Extra: Leitura De Passagem
+
+Trate `Back Extra` como complemento de leitura rapida, nao como um segundo card, miniapostila ou novo bloco de memorizacao. O usuario normalmente apenas passa os olhos por esse campo depois de responder ao recall principal.
+
+Por isso, o `Back Extra` deve ser o mais enxuto possivel sem perder a precisao conceitual necessaria. A pergunta editorial nao e "o que mais posso explicar aqui?", mas "qual e a menor quantidade de texto que acrescenta valor real depois do recall?".
+
+Ao criar, reescrever ou sugerir um `Back Extra`:
+
+- entregue por padrao apenas a versao final mais enxuta e utilizavel;
+- nao ofereca primeiro uma explicacao longa seguida de uma alternativa curta se a curta ja for suficiente;
+- evite preambulos, justificativas editoriais, repeticao do `Text` e explicacoes que o usuario ja precisou recuperar no front;
+- prefira uma frase curta, equivalencia, contraste, excecao, mnemonico, microexemplo ou esclarecimento que elimine uma confusao provavel;
+- preserve qualificadores indispensaveis para nao transformar concisao em erro;
+- nao inclua detalhes apenas porque sao verdadeiros;
+- se a informacao merecer recall proprio, ela deve ser avaliada como card/cloze, e nao escondida em um `Back Extra` longo;
+- quando nenhum complemento trouxer ganho real, `Back Extra` vazio e aceitavel e preferivel a preenchimento ornamental.
+
+Exemplo de direcao editorial:
+
+Em vez de um paragrafo explicando analogias, homologias e ressalvas sobre plasmodesmos, se a precisao estiver preservada, prefira algo como:
+
+`<span class="kw">Plasmodesmo</span> ≈ junção comunicante das plantas: permite comunicação direta entre células adjacentes.`
+
+O objetivo e permitir leitura quase instantanea depois do recall.
+
+Ao auditar cards existentes, verifique explicitamente se o `Back Extra` pode ser encurtado. Considere problematicos extras que:
+
+- repetem a resposta do cloze em outras palavras;
+- desenvolvem uma explicacao maior do que a utilidade do tema justifica;
+- acumulam exemplos, ressalvas ou contexto que nao mudam a compreensao pratica;
+- poderiam ser reduzidos a uma frase, contraste ou equivalencia sem perda relevante;
+- desviam a atencao do conhecimento central ou aumentam desnecessariamente o tempo por revisao.
+
+Nao reduza por contagem mecanica de palavras. Um `Back Extra` um pouco maior pode ser necessario para corrigir uma ambiguidade importante, registrar uma excecao recorrente ou impedir uma generalizacao errada. Ainda assim, busque a menor formulacao que cumpra essa funcao.
+
+Em revisoes de lote ou deck, trate excesso de `Back Extra` como custo de revisao real, ao lado de recalls demais, duplicidade e atomizacao excessiva. Se houver muitos extras verbosos, sinalize o padrao e recomende enxugamento sistematico.
+
 ## Granularidade De Recall
 
 Ao analisar um card Cloze, nao avalie apenas se cada informacao merece ser mantida. Avalie tambem se cada informacao merece gerar um recall independente.
@@ -147,6 +184,7 @@ Observe:
 - divergencias com o Federal Online;
 - cards longos ou atomizados demais;
 - notes com recalls independentes demais ou de menos para a recorrencia do tema;
+- `Back Extra` verboso, redundante ou maior do que a funcao de leitura rapida justifica;
 - distribuicao do custo de revisao em relacao ao peso dos temas nos materiais de recorrencia;
 - padroes de cloze ruim;
 - excesso de cards com baixa utilidade de prova;
