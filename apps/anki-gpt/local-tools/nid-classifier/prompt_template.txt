@@ -1,0 +1,28 @@
+Classifique independentemente os NIDs abaixo pelo conteúdo real de cada note e escolha o deck destino mais específico entre os destinos permitidos.
+
+NIDs:
+{nids_csv}
+
+Destinos permitidos:
+{destinations_bullets}
+
+Regras:
+- ignore o deck atual como evidência semântica;
+- escolha sempre o subdeck mais específico possível;
+- EVITE os decks-raiz "#UFPR::Biologia::• Histologia Animal", "#UFPR::Biologia::• Fisiologia Animal" e "#UFPR::Biologia::• Embriologia";
+- use um desses decks-raiz somente se a note realmente abranger múltiplos subtemas/sistemas e nenhum subdeck específico representar adequadamente o conteúdo;
+- "#UFPR::Biologia::• Patologia" é um destino válido para conteúdo cujo foco principal seja doença, lesão, alteração patológica, mecanismo de doença, neoplasia, distúrbio ou condição clínica/patológica;
+- não force Patologia quando a doença for apenas exemplo secundário de um conceito fisiológico/histológico;
+- para Image Occlusion, use o contexto visual e preserve irmãos da mesma família no mesmo destino quando identificáveis;
+- se houver dúvida real, use NEEDS_REVIEW;
+- não mova nem edite cards.
+
+Retorne EXATAMENTE uma linha JSON por NID, sem texto fora do bloco JSONL, no formato:
+{"nid":"1234567890123","status":"CLASSIFIED","deck":"#UFPR::...","reason":"justificativa curta"}
+ou
+{"nid":"1234567890123","status":"NEEDS_REVIEW","deck":"","reason":"justificativa curta"}
+
+Obrigatório:
+- todos os NIDs recebidos devem aparecer exatamente uma vez;
+- deck deve ser exatamente um dos destinos permitidos quando status=CLASSIFIED;
+- não invente outros destinos.
