@@ -18,50 +18,95 @@ Automação local para reclassificar **do zero** o mesmo universo do CSV anterio
 - searches para o Anki: `~/Desktop/anki_move_searches_v2.txt`
 - estado: `~/Desktop/anki_nid_classifier_state_v2.json`
 
+## Importante: usar o perfil pessoal REAL do Brave
+
+O ChatGPT/Anki GPT deve ser aberto com o mesmo perfil pessoal do Brave que já contém a sessão válida. **Não use o profile isolado padrão do Playwright para esta automação.**
+
+Use sempre:
+
+```bash
+bash run_personal_brave.sh ...
+```
+
+Esse wrapper usa:
+
+```text
+~/Library/Application Support/BraveSoftware/Brave-Browser
+```
+
+como `user-data-dir` e força o profile correto por `--profile-directory`.
+
+O Brave deve estar completamente fechado antes de iniciar a automação, porque o profile real não pode ficar aberto simultaneamente em duas instâncias.
+
 ## Atualizar o código local
 
 ```bash
 cd "/Users/gatsby/Workspace/Anki Study Platform"
 git pull --ff-only
+
+cd apps/anki-gpt/local-tools/nid-classifier
 ```
 
 ## Instalação
 
 ```bash
-cd "/Users/gatsby/Workspace/Anki Study Platform/apps/anki-gpt/local-tools/nid-classifier"
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r requirements.txt
-python3 -m playwright install chromium
 ```
 
-O script tenta usar o Brave do macOS primeiro; o Chromium do Playwright é fallback.
+Não é necessário instalar Chromium do Playwright quando o Brave local é usado.
 
 ## URL do Anki GPT
 
 ```bash
-export ANKI_CLASSIFIER_GPT_URL='COLE_AQUI_A_URL_DO_ANKI_GPT'
+export ANKI_CLASSIFIER_GPT_URL='https://chatgpt.com/g/g-69c594348e90819195e6f81f08a9f89e-anki'
 ```
 
 Para persistir:
 
 ```bash
-echo "export ANKI_CLASSIFIER_GPT_URL='COLE_AQUI_A_URL_DO_ANKI_GPT'" >> ~/.zshrc
+echo "export ANKI_CLASSIFIER_GPT_URL='https://chatgpt.com/g/g-69c594348e90819195e6f81f08a9f89e-anki'" >> ~/.zshrc
 source ~/.zshrc
 ```
 
-## Primeiro login
+## Descobrir o perfil pessoal do Brave
+
+Primeiro liste os profiles existentes:
 
 ```bash
-source .venv/bin/activate
-python3 classify.py --login-only
+bash run_personal_brave.sh --list-profiles
 ```
 
-Faça login na janela aberta; volte ao Terminal e pressione Enter.
+Se existir um profile cujo nome exibido seja `Personal` ou `Pessoal`, o wrapper o escolhe automaticamente.
+
+Se precisar forçar manualmente um diretório, use o valor da primeira coluna (`Default`, `Profile 1`, etc.):
+
+```bash
+export ANKI_CLASSIFIER_BRAVE_PROFILE_DIRECTORY='Default'
+```
+
+ou, por exemplo:
+
+```bash
+export ANKI_CLASSIFIER_BRAVE_PROFILE_DIRECTORY='Profile 1'
+```
+
+## Testar a sessão existente
+
+Feche completamente o Brave e rode:
+
+```bash
+bash run_personal_brave.sh --login-only
+```
+
+A janela deve abrir diretamente no Anki GPT com a sessão do seu perfil pessoal. Se já estiver autenticado, não faça novo login; apenas confirme visualmente que o GPT carregou normalmente.
+
+Volte ao Terminal e pressione Enter para fechar a instância de teste.
 
 ## Validar antes de rodar
 
-Com o CSV antigo ainda em `~/Desktop/anki_nid_classifications.csv`:
+A validação de dados não precisa abrir o Brave:
 
 ```bash
 python3 classify.py --validate-config
@@ -87,18 +132,20 @@ python3 classify.py --dry-run
 
 ## Começar do zero
 
+Feche completamente o Brave e rode:
+
 ```bash
-python3 classify.py --reset
+bash run_personal_brave.sh --reset
 ```
 
 O `--reset` apaga apenas os arquivos `v2`. O CSV antigo, usado como universo-semente, não é alterado.
 
 ## Retomar após quota
 
-Quando a quota voltar:
+Quando a quota voltar, feche completamente o Brave e rode:
 
 ```bash
-python3 classify.py
+bash run_personal_brave.sh
 ```
 
 A retomada é derivada dos NIDs já gravados no CSV `v2`; o batch que encontrou a quota volta inteiro.
@@ -142,13 +189,13 @@ Por padrão o universo é extraído do CSV antigo:
 Para usar outro CSV:
 
 ```bash
-python3 classify.py --seed-csv ~/Desktop/outro.csv --expected-universe 0 --reset
+bash run_personal_brave.sh --seed-csv ~/Desktop/outro.csv --expected-universe 0 --reset
 ```
 
 Ou uma lista explícita de NIDs:
 
 ```bash
-python3 classify.py --all-nids ~/Desktop/todos_nids.txt --expected-universe 0 --reset
+bash run_personal_brave.sh --all-nids ~/Desktop/todos_nids.txt --expected-universe 0 --reset
 ```
 
 `--expected-universe 0` desativa a trava de 2457 e só deve ser usado quando a mudança for intencional.
