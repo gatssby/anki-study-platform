@@ -7,6 +7,10 @@ USER_DATA_DIR="$HOME/Library/Application Support/BraveSoftware/Brave-Browser"
 LOCAL_STATE="$USER_DATA_DIR/Local State"
 PYTHON="$HERE/.venv/bin/python"
 
+# Este classificador é específico do Anki GPT. Permite override por variável de ambiente,
+# mas evita exigir um novo export a cada terminal.
+export ANKI_CLASSIFIER_GPT_URL="${ANKI_CLASSIFIER_GPT_URL:-https://chatgpt.com/g/g-69c594348e90819195e6f81f08a9f89e-anki}"
+
 if [[ ! -x "$BRAVE" ]]; then
   echo "Brave não encontrado em: $BRAVE" >&2
   exit 2
@@ -47,7 +51,7 @@ fi
 PROFILE_DIRECTORY="${ANKI_CLASSIFIER_BRAVE_PROFILE_DIRECTORY:-}"
 
 if [[ -z "$PROFILE_DIRECTORY" ]]; then
-  PROFILE_DIRECTORY="$($PYTHON - "$LOCAL_STATE" <<'PY'
+  PROFILE_DIRECTORY="$("$PYTHON" - "$LOCAL_STATE" <<'PY'
 import json, sys, unicodedata
 from pathlib import Path
 p = Path(sys.argv[1])
@@ -56,8 +60,7 @@ profile = data.get("profile", {})
 info = profile.get("info_cache", {})
 
 def norm(s):
-    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().strip()
-    return s
+    return unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode().lower().strip()
 
 personal = [
     directory
@@ -72,7 +75,7 @@ PY
 )"
 fi
 
-PROFILE_NAME="$($PYTHON - "$LOCAL_STATE" "$PROFILE_DIRECTORY" <<'PY'
+PROFILE_NAME="$("$PYTHON" - "$LOCAL_STATE" "$PROFILE_DIRECTORY" <<'PY'
 import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
@@ -116,6 +119,7 @@ echo "Usando Brave pessoal existente:"
 echo "  user-data-dir: $USER_DATA_DIR"
 echo "  profile-directory: $PROFILE_DIRECTORY"
 echo "  nome do perfil: ${PROFILE_NAME:-<sem nome>}"
+echo "  Anki GPT: $ANKI_CLASSIFIER_GPT_URL"
 echo
 
 exec "$PYTHON" "$HERE/classify.py" \
